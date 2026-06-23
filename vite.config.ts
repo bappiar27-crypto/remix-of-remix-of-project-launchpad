@@ -12,4 +12,8 @@ export default defineConfig({
     // nitro/vite builds from this
     server: { entry: "server" },
   },
+  // Force-enable nitro with Vercel preset so build outputs to `.vercel/output`
+  nitro: {
+    preset: "cloudflare-pages",
+  },
 });
