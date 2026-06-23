@@ -243,7 +243,7 @@ const [pendingRange, setPendingRange] = useState<DateRange>("all");
 
   const adSetList: any[] = adSets ?? [];
   const adSetsCount = adSetList.length;
-  const adList: any[] = ads ?? [];
+  
   const totalAdSetSpend = adSetList.reduce((a, r) => a + (Number(r.spend) || 0), 0);
 
   return (
