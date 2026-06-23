@@ -15,7 +15,9 @@ function AdsPage() {
     queryFn: async () => {
       const { data } = await supabase
         .from("ads")
-        .select("*, campaign:campaigns(name), ad_set:ad_sets(name), ad_account:ad_accounts(currency, client:clients(name))")
+        .select(
+          "*, campaign:campaigns(name), ad_set:ad_sets(name), ad_account:ad_accounts(currency, client:clients(name))",
+        )
         .order("spend", { ascending: false });
       return data ?? [];
     },
@@ -57,14 +59,20 @@ function AdsPage() {
                     <div className="flex items-center gap-3 min-w-0">
                       <div className="size-10 rounded-md bg-surface border border-border overflow-hidden grid place-items-center shrink-0">
                         {a.creative_thumbnail ? (
-                          <img src={a.creative_thumbnail} alt="" className="w-full h-full object-cover" />
+                          <img
+                            src={a.creative_thumbnail}
+                            alt=""
+                            className="w-full h-full object-cover"
+                          />
                         ) : (
                           <ImageIcon className="size-4 opacity-40" />
                         )}
                       </div>
                       <div className="min-w-0">
                         <div className="font-medium truncate">{a.name}</div>
-                        <div className="text-xs text-muted-foreground truncate">{a.ad_account?.client?.name ?? ""}</div>
+                        <div className="text-xs text-muted-foreground truncate">
+                          {a.ad_account?.client?.name ?? ""}
+                        </div>
                       </div>
                     </div>
                   </td>
@@ -72,13 +80,20 @@ function AdsPage() {
                     <div className="truncate">{a.campaign?.name}</div>
                     <div className="text-muted-foreground truncate">{a.ad_set?.name}</div>
                   </td>
-                  <td className="px-4 py-3"><StatusBadge status={a.effective_status ?? a.status} /></td>
-                  <td className="px-4 py-3 text-right font-medium">{a.ad_account?.currency ?? "$"}{Number(a.spend).toFixed(2)}</td>
+                  <td className="px-4 py-3">
+                    <StatusBadge status={a.effective_status ?? a.status} />
+                  </td>
+                  <td className="px-4 py-3 text-right font-medium">
+                    {a.ad_account?.currency ?? "$"}
+                    {Number(a.spend).toFixed(2)}
+                  </td>
                   <td className="px-4 py-3 text-right">{Number(a.impressions).toLocaleString()}</td>
                   <td className="px-4 py-3 text-right">{Number(a.clicks).toLocaleString()}</td>
                   <td className="px-4 py-3 text-right">{Number(a.ctr).toFixed(2)}%</td>
                   <td className="px-4 py-3 text-right">${Number(a.cpm).toFixed(2)}</td>
-                  <td className="px-4 py-3 text-right font-medium text-primary">{Number(a.results).toLocaleString()}</td>
+                  <td className="px-4 py-3 text-right font-medium text-primary">
+                    {Number(a.results).toLocaleString()}
+                  </td>
                 </tr>
               ))
             )}

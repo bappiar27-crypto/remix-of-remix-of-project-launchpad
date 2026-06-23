@@ -13,7 +13,13 @@ export const Route = createFileRoute("/_authenticated/clients")({
 });
 
 function initials(name: string) {
-  return (name || "?").trim().split(/\s+/).map((p) => p[0]).slice(0, 2).join("").toUpperCase();
+  return (name || "?")
+    .trim()
+    .split(/\s+/)
+    .map((p) => p[0])
+    .slice(0, 2)
+    .join("")
+    .toUpperCase();
 }
 
 function fmtUSD(n: number) {
@@ -45,7 +51,11 @@ function ClientsPage() {
     if (statusFilter !== "all" && c.status !== statusFilter) return false;
     if (!search) return true;
     const q = search.toLowerCase();
-    return c.name?.toLowerCase().includes(q) || c.slug?.includes(q) || c.company?.toLowerCase().includes(q);
+    return (
+      c.name?.toLowerCase().includes(q) ||
+      c.slug?.includes(q) ||
+      c.company?.toLowerCase().includes(q)
+    );
   });
 
   const onDelete = async (id: string, name: string) => {
@@ -110,7 +120,9 @@ function ClientsPage() {
           <table className="w-full text-sm">
             <thead>
               <tr className="bg-surface/60 text-[11px] uppercase tracking-wider text-muted-foreground">
-                <th className="text-left px-4 py-3 w-10"><input type="checkbox" className="rounded" /></th>
+                <th className="text-left px-4 py-3 w-10">
+                  <input type="checkbox" className="rounded" />
+                </th>
                 <th className="text-left px-4 py-3">Client</th>
                 <th className="text-left px-4 py-3">Website</th>
                 <th className="text-left px-4 py-3">Client ID</th>
@@ -125,23 +137,35 @@ function ClientsPage() {
               {filtered.length === 0 ? (
                 <tr>
                   <td colSpan={9} className="px-4 py-16 text-center">
-                    <div className="size-14 mx-auto rounded-2xl bg-gradient-to-br from-primary/20 to-accent/20 grid place-items-center mb-3">👥</div>
+                    <div className="size-14 mx-auto rounded-2xl bg-gradient-to-br from-primary/20 to-accent/20 grid place-items-center mb-3">
+                      👥
+                    </div>
                     <div className="font-semibold">No clients yet</div>
-                    <p className="text-xs text-muted-foreground mt-1">Add your first client to start tracking ads.</p>
-                    <Link to="/clients/new" className="mt-4 inline-flex items-center gap-2 rounded-lg bg-primary text-primary-foreground px-4 py-2 text-sm font-semibold">
+                    <p className="text-xs text-muted-foreground mt-1">
+                      Add your first client to start tracking ads.
+                    </p>
+                    <Link
+                      to="/clients/new"
+                      className="mt-4 inline-flex items-center gap-2 rounded-lg bg-primary text-primary-foreground px-4 py-2 text-sm font-semibold"
+                    >
                       <Plus className="size-4" /> Add new client
                     </Link>
                   </td>
                 </tr>
               ) : (
                 filtered.map((c: any) => {
-                  const totalSpentUsd = (c.ad_accounts ?? []).reduce((s: number, a: any) => s + (Number(a.total_spend) || 0), 0);
+                  const totalSpentUsd = (c.ad_accounts ?? []).reduce(
+                    (s: number, a: any) => s + (Number(a.total_spend) || 0),
+                    0,
+                  );
                   const deposit = Number(c.deposit_amount) || 0;
                   const remaining = deposit - totalSpentUsd;
                   const acctCount = c.ad_accounts?.length ?? 0;
                   return (
                     <tr key={c.id} className="border-t border-border/40 hover:bg-surface/40">
-                      <td className="px-4 py-4"><input type="checkbox" className="rounded" /></td>
+                      <td className="px-4 py-4">
+                        <input type="checkbox" className="rounded" />
+                      </td>
                       <td className="px-4 py-4">
                         <div className="flex items-center gap-3">
                           <div className="size-9 rounded-lg bg-gradient-to-br from-emerald-500 to-teal-500 grid place-items-center font-bold text-white text-sm">
@@ -149,27 +173,46 @@ function ClientsPage() {
                           </div>
                           <div className="min-w-0">
                             <div className="font-semibold truncate">{c.name}</div>
-                            {c.company && <div className="text-xs text-muted-foreground truncate">{c.company}</div>}
+                            {c.company && (
+                              <div className="text-xs text-muted-foreground truncate">
+                                {c.company}
+                              </div>
+                            )}
                           </div>
                         </div>
                       </td>
                       <td className="px-4 py-4 text-muted-foreground">
                         {c.website ? (
-                          <a href={c.website.startsWith("http") ? c.website : `https://${c.website}`} target="_blank" rel="noreferrer" className="text-primary hover:underline">
+                          <a
+                            href={c.website.startsWith("http") ? c.website : `https://${c.website}`}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="text-primary hover:underline"
+                          >
                             {c.website.replace(/^https?:\/\//, "")}
                           </a>
-                        ) : "—"}
+                        ) : (
+                          "—"
+                        )}
                       </td>
                       <td className="px-4 py-4">
-                        <code className="text-xs px-2 py-1 rounded bg-emerald-500/10 text-emerald-400 font-mono">{c.client_code ?? c.slug?.slice(0, 8).toUpperCase()}</code>
+                        <code className="text-xs px-2 py-1 rounded bg-emerald-500/10 text-emerald-400 font-mono">
+                          {c.client_code ?? c.slug?.slice(0, 8).toUpperCase()}
+                        </code>
                       </td>
                       <td className="px-4 py-4">
-                        <span className={`inline-flex items-center gap-1.5 text-xs font-semibold px-2.5 py-1 rounded-full ${
-                          c.status === "active" ? "bg-emerald-500/15 text-emerald-400"
-                          : c.status === "paused" ? "bg-amber-500/15 text-amber-400"
-                          : "bg-muted/40 text-muted-foreground"
-                        }`}>
-                          <span className={`size-1.5 rounded-full ${c.status === "active" ? "bg-emerald-400" : c.status === "paused" ? "bg-amber-400" : "bg-muted-foreground"}`} />
+                        <span
+                          className={`inline-flex items-center gap-1.5 text-xs font-semibold px-2.5 py-1 rounded-full ${
+                            c.status === "active"
+                              ? "bg-emerald-500/15 text-emerald-400"
+                              : c.status === "paused"
+                                ? "bg-amber-500/15 text-amber-400"
+                                : "bg-muted/40 text-muted-foreground"
+                          }`}
+                        >
+                          <span
+                            className={`size-1.5 rounded-full ${c.status === "active" ? "bg-emerald-400" : c.status === "paused" ? "bg-amber-400" : "bg-muted-foreground"}`}
+                          />
                           {c.status.charAt(0).toUpperCase() + c.status.slice(1)}
                         </span>
                       </td>
@@ -177,7 +220,9 @@ function ClientsPage() {
                         {c.deposit_currency === "BDT" && c.bdt_rate ? (
                           <>
                             <div className="font-bold">{fmtBDT(deposit * Number(c.bdt_rate))}</div>
-                            <div className="text-[11px] text-muted-foreground">{fmtUSD(deposit)}</div>
+                            <div className="text-[11px] text-muted-foreground">
+                              {fmtUSD(deposit)}
+                            </div>
                           </>
                         ) : (
                           <div className="font-bold">{fmtUSD(deposit)}</div>
@@ -185,18 +230,28 @@ function ClientsPage() {
                       </td>
                       <td className="px-4 py-4 text-right">
                         <div className="font-bold">{fmtUSD(totalSpentUsd)}</div>
-                        <div className="text-[11px] text-muted-foreground">{acctCount} ad acct{acctCount !== 1 ? "s" : ""}</div>
+                        <div className="text-[11px] text-muted-foreground">
+                          {acctCount} ad acct{acctCount !== 1 ? "s" : ""}
+                        </div>
                       </td>
                       <td className="px-4 py-4 text-right">
-                        <div className={`font-bold ${remaining < 0 ? "text-destructive" : "text-emerald-400"}`}>{fmtUSD(remaining)}</div>
+                        <div
+                          className={`font-bold ${remaining < 0 ? "text-destructive" : "text-emerald-400"}`}
+                        >
+                          {fmtUSD(remaining)}
+                        </div>
                         {c.deposit_currency === "BDT" && c.bdt_rate && (
-                          <div className="text-[11px] text-muted-foreground">{fmtBDT(remaining * Number(c.bdt_rate))}</div>
+                          <div className="text-[11px] text-muted-foreground">
+                            {fmtBDT(remaining * Number(c.bdt_rate))}
+                          </div>
                         )}
                       </td>
                       <td className="px-4 py-4">
                         <div className="flex items-center justify-end gap-1.5 rounded-xl border border-border/60 bg-surface/40 p-1.5 w-fit ml-auto">
                           <button
-                            onClick={() => navigate({ to: "/clients/$slug/report", params: { slug: c.slug } })}
+                            onClick={() =>
+                              navigate({ to: "/clients/$slug/report", params: { slug: c.slug } })
+                            }
                             title="View general report"
                             className="inline-flex items-center justify-center size-9 rounded-lg bg-gradient-to-br from-emerald-500 to-teal-500 text-white shadow-md shadow-emerald-500/30 hover:opacity-90 transition"
                           >
@@ -210,7 +265,9 @@ function ClientsPage() {
                             <Link2 className="size-4" />
                           </button>
                           <button
-                            onClick={() => navigate({ to: "/clients/new", search: { edit: c.id } as any })}
+                            onClick={() =>
+                              navigate({ to: "/clients/new", search: { edit: c.id } as any })
+                            }
                             title="Edit client"
                             className="inline-flex items-center justify-center size-9 rounded-lg border border-border bg-surface text-muted-foreground hover:text-amber-400 hover:border-amber-400/50 transition"
                           >
@@ -234,7 +291,8 @@ function ClientsPage() {
         </div>
         {filtered.length > 0 && (
           <div className="px-4 py-3 text-xs text-muted-foreground border-t border-border/40">
-            {filtered.length} of {clients?.length ?? 0} client{(clients?.length ?? 0) !== 1 ? "s" : ""}
+            {filtered.length} of {clients?.length ?? 0} client
+            {(clients?.length ?? 0) !== 1 ? "s" : ""}
           </div>
         )}
       </div>

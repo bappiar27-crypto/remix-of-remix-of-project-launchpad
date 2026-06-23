@@ -76,8 +76,7 @@ function SyncActivityPage() {
       setReport(r);
       if (!silent) {
         const total = (r.report ?? []).reduce(
-          (s: number, x: any) =>
-            s + x.missing_in_db.length + x.stale_in_db.length + x.diffs.length,
+          (s: number, x: any) => s + x.missing_in_db.length + x.stale_in_db.length + x.diffs.length,
           0,
         );
         toast[total ? "warning" : "success"](
@@ -102,8 +101,7 @@ function SyncActivityPage() {
         return;
       }
 
-      const results: Array<{ id: string; ok: boolean; error?: string | null }> =
-        r?.results ?? [];
+      const results: Array<{ id: string; ok: boolean; error?: string | null }> = r?.results ?? [];
       const failed = results.filter((x) => !x.ok);
       const okCount = results.filter((x) => x.ok).length;
 
@@ -154,10 +152,9 @@ function SyncActivityPage() {
       const r: any = await refreshFn({ data: undefined as any });
       const failed = (r?.results ?? []).filter((x: any) => !x.ok);
       if (failed.length) {
-        toast.error(
-          `Refreshed · ${failed.length} failed — ${failed[0]?.error ?? "unknown"}`,
-          { duration: 12000 },
-        );
+        toast.error(`Refreshed · ${failed.length} failed — ${failed[0]?.error ?? "unknown"}`, {
+          duration: 12000,
+        });
         console.error("[Refresh failures]", failed);
       } else {
         toast.success(`Cleared cache · synced ${r?.count ?? 0} accounts`);
@@ -200,8 +197,8 @@ function SyncActivityPage() {
             <Activity className="size-6 text-primary" /> Sync Activity & Mapping
           </h1>
           <p className="text-sm text-muted-foreground">
-            Verify every ad account synced correctly and that campaign IDs match Facebook
-            Ads Manager.
+            Verify every ad account synced correctly and that campaign IDs match Facebook Ads
+            Manager.
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
@@ -274,9 +271,7 @@ function SyncActivityPage() {
                   <tr key={a.id} className="border-t border-border/40 align-top">
                     <td className="px-3 py-2">
                       <div className="font-medium">{a.account_name ?? "—"}</div>
-                      <div className="text-xs text-muted-foreground">
-                        {a.client?.name ?? "—"}
-                      </div>
+                      <div className="text-xs text-muted-foreground">{a.client?.name ?? "—"}</div>
                     </td>
                     <td className="px-3 py-2 font-mono text-xs">{a.fb_account_id}</td>
                     <td className="px-3 py-2 text-xs">
@@ -326,8 +321,7 @@ function SyncActivityPage() {
               <ShieldCheck className="size-4 text-accent" /> Campaign mapping verification
             </div>
             <p className="text-xs text-muted-foreground mt-0.5">
-              Live-pulls campaign IDs from Facebook and diffs them against what's stored
-              locally.
+              Live-pulls campaign IDs from Facebook and diffs them against what's stored locally.
             </p>
           </div>
           <button
@@ -350,16 +344,12 @@ function SyncActivityPage() {
         ) : (
           <div className="space-y-3">
             {(report.report ?? []).map((row: any) => {
-              const total =
-                row.missing_in_db.length + row.stale_in_db.length + row.diffs.length;
+              const total = row.missing_in_db.length + row.stale_in_db.length + row.diffs.length;
               const hasIssue = !!row.error || total > 0;
               const label = row.account_name ?? row.fb_account_id;
               const isBusy = syncingId === row.ad_account_id;
               return (
-                <div
-                  key={row.ad_account_id}
-                  className="rounded-md border border-border/50 p-3"
-                >
+                <div key={row.ad_account_id} className="rounded-md border border-border/50 p-3">
                   <div className="flex items-center justify-between gap-2 mb-2 flex-wrap">
                     <div className="text-sm font-medium">
                       {label}{" "}
@@ -372,8 +362,7 @@ function SyncActivityPage() {
                         <span className="text-destructive">⚠ {row.error}</span>
                       ) : total === 0 ? (
                         <span className="text-success inline-flex items-center gap-1">
-                          <CheckCircle2 className="size-3" /> matched {row.matched}/
-                          {row.fb_count}
+                          <CheckCircle2 className="size-3" /> matched {row.matched}/{row.fb_count}
                         </span>
                       ) : (
                         <span className="text-warning">
@@ -475,9 +464,7 @@ function SyncActivityPage() {
               <tbody>
                 {(logs ?? []).map((l: any) => (
                   <tr key={l.id} className="border-t border-border/40">
-                    <td className="px-3 py-2">
-                      {new Date(l.started_at).toLocaleString()}
-                    </td>
+                    <td className="px-3 py-2">{new Date(l.started_at).toLocaleString()}</td>
                     <td className="px-3 py-2">
                       {l.ad_account?.account_name ?? l.ad_account?.fb_account_id ?? "—"}
                     </td>
@@ -490,12 +477,8 @@ function SyncActivityPage() {
                         <span className="text-warning">{l.status}</span>
                       )}
                     </td>
-                    <td className="px-3 py-2 text-right font-mono">
-                      {l.items_synced ?? 0}
-                    </td>
-                    <td className="px-3 py-2 text-right font-mono">
-                      {l.duration_ms ?? 0}ms
-                    </td>
+                    <td className="px-3 py-2 text-right font-mono">{l.items_synced ?? 0}</td>
+                    <td className="px-3 py-2 text-right font-mono">{l.duration_ms ?? 0}ms</td>
                     <td
                       className="px-3 py-2 text-destructive max-w-xs truncate"
                       title={l.error ?? ""}

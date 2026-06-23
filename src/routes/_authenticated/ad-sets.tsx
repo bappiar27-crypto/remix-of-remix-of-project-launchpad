@@ -13,7 +13,12 @@ function AdSetsPage() {
   const { data: items } = useQuery({
     queryKey: ["adsets"],
     queryFn: async () => {
-      const { data } = await supabase.from("ad_sets").select("*, campaign:campaigns(name), ad_account:ad_accounts(account_name, currency, client:clients(name))").order("spend", { ascending: false });
+      const { data } = await supabase
+        .from("ad_sets")
+        .select(
+          "*, campaign:campaigns(name), ad_account:ad_accounts(account_name, currency, client:clients(name))",
+        )
+        .order("spend", { ascending: false });
       return data ?? [];
     },
   });
@@ -41,20 +46,37 @@ function AdSetsPage() {
           </thead>
           <tbody>
             {(items ?? []).length === 0 ? (
-              <tr><td colSpan={9} className="text-center py-12 text-muted-foreground"><Layers className="size-10 mx-auto opacity-30 mb-2" />No ad sets yet</td></tr>
-            ) : (items ?? []).map((a: any) => (
-              <tr key={a.id} className="border-t border-border/40 hover:bg-surface/40">
-                <td className="px-4 py-3 max-w-[280px]"><div className="font-medium truncate">{a.name}</div><div className="text-xs text-muted-foreground">{a.optimization_goal}</div></td>
-                <td className="px-4 py-3 text-xs max-w-[200px] truncate">{a.campaign?.name}</td>
-                <td className="px-4 py-3"><StatusBadge status={a.effective_status ?? a.status} /></td>
-                <td className="px-4 py-3 text-right font-medium">{a.ad_account?.currency ?? "$"}{Number(a.spend).toFixed(2)}</td>
-                <td className="px-4 py-3 text-right">{Number(a.impressions).toLocaleString()}</td>
-                <td className="px-4 py-3 text-right">{Number(a.clicks).toLocaleString()}</td>
-                <td className="px-4 py-3 text-right">{Number(a.ctr).toFixed(2)}%</td>
-                <td className="px-4 py-3 text-right">${Number(a.cpm).toFixed(2)}</td>
-                <td className="px-4 py-3 text-right font-medium text-primary">{Number(a.results).toLocaleString()}</td>
+              <tr>
+                <td colSpan={9} className="text-center py-12 text-muted-foreground">
+                  <Layers className="size-10 mx-auto opacity-30 mb-2" />
+                  No ad sets yet
+                </td>
               </tr>
-            ))}
+            ) : (
+              (items ?? []).map((a: any) => (
+                <tr key={a.id} className="border-t border-border/40 hover:bg-surface/40">
+                  <td className="px-4 py-3 max-w-[280px]">
+                    <div className="font-medium truncate">{a.name}</div>
+                    <div className="text-xs text-muted-foreground">{a.optimization_goal}</div>
+                  </td>
+                  <td className="px-4 py-3 text-xs max-w-[200px] truncate">{a.campaign?.name}</td>
+                  <td className="px-4 py-3">
+                    <StatusBadge status={a.effective_status ?? a.status} />
+                  </td>
+                  <td className="px-4 py-3 text-right font-medium">
+                    {a.ad_account?.currency ?? "$"}
+                    {Number(a.spend).toFixed(2)}
+                  </td>
+                  <td className="px-4 py-3 text-right">{Number(a.impressions).toLocaleString()}</td>
+                  <td className="px-4 py-3 text-right">{Number(a.clicks).toLocaleString()}</td>
+                  <td className="px-4 py-3 text-right">{Number(a.ctr).toFixed(2)}%</td>
+                  <td className="px-4 py-3 text-right">${Number(a.cpm).toFixed(2)}</td>
+                  <td className="px-4 py-3 text-right font-medium text-primary">
+                    {Number(a.results).toLocaleString()}
+                  </td>
+                </tr>
+              ))
+            )}
           </tbody>
         </table>
       </div>

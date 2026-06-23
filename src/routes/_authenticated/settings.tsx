@@ -4,11 +4,24 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { supabase } from "@/integrations/supabase/client";
 import {
-  getSettingsPublic, saveOrgInfo, saveBranding, savePreferences, updateMyProfile, clearAllData,
+  getSettingsPublic,
+  saveOrgInfo,
+  saveBranding,
+  savePreferences,
+  updateMyProfile,
+  clearAllData,
 } from "@/lib/fb/admin.functions";
 import { toast } from "sonner";
 import {
-  Building2, UserCog, Palette, Sliders, AlertTriangle, Save, Loader2, Upload, Lock,
+  Building2,
+  UserCog,
+  Palette,
+  Sliders,
+  AlertTriangle,
+  Save,
+  Loader2,
+  Upload,
+  Lock,
 } from "lucide-react";
 
 export const Route = createFileRoute("/_authenticated/settings")({
@@ -16,7 +29,16 @@ export const Route = createFileRoute("/_authenticated/settings")({
   component: SettingsPage,
 });
 
-const TIMEZONES = ["Asia/Dhaka", "Asia/Kolkata", "Asia/Karachi", "Asia/Dubai", "Europe/London", "America/New_York", "America/Los_Angeles", "UTC"];
+const TIMEZONES = [
+  "Asia/Dhaka",
+  "Asia/Kolkata",
+  "Asia/Karachi",
+  "Asia/Dubai",
+  "Europe/London",
+  "America/New_York",
+  "America/Los_Angeles",
+  "UTC",
+];
 const CURRENCIES = ["USD ($)", "EUR (€)", "GBP (£)", "BDT (৳)", "INR (₹)", "AED (د.إ)"];
 const LANGUAGES = ["English", "বাংলা", "हिन्दी", "العربية", "Español"];
 const ATTRIBUTION = ["1 Day Click", "7 Day Click", "28 Day Click", "1 Day View", "7 Day View"];
@@ -30,7 +52,10 @@ function SettingsPage() {
   const updateProfileFn = useServerFn(updateMyProfile);
   const clearFn = useServerFn(clearAllData);
 
-  const { data: settings } = useQuery({ queryKey: ["settings"], queryFn: () => getFn({ data: undefined as any }) });
+  const { data: settings } = useQuery({
+    queryKey: ["settings"],
+    queryFn: () => getFn({ data: undefined as any }),
+  });
 
   // --- Org ---
   const [orgName, setOrgName] = useState("");
@@ -82,10 +107,16 @@ function SettingsPage() {
 
   useEffect(() => {
     (async () => {
-      const { data: { user } } = await supabase.auth.getUser();
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
       if (!user) return;
       setEmail(user.email ?? "");
-      const { data: prof } = await supabase.from("profiles").select("full_name").eq("id", user.id).maybeSingle();
+      const { data: prof } = await supabase
+        .from("profiles")
+        .select("full_name")
+        .eq("id", user.id)
+        .maybeSingle();
       setName(prof?.full_name ?? "");
     })();
   }, []);
@@ -93,80 +124,156 @@ function SettingsPage() {
   const onSaveOrg = async () => {
     setSavingOrg(true);
     try {
-      await saveOrgFn({ data: { org_name: orgName, org_email: orgEmail, org_phone: orgPhone, org_address: orgAddress } });
+      await saveOrgFn({
+        data: {
+          org_name: orgName,
+          org_email: orgEmail,
+          org_phone: orgPhone,
+          org_address: orgAddress,
+        },
+      });
       toast.success("Organization info saved");
       qc.invalidateQueries({ queryKey: ["settings"] });
-    } catch (e: any) { toast.error(e?.message ?? "Save failed"); }
-    finally { setSavingOrg(false); }
+    } catch (e: any) {
+      toast.error(e?.message ?? "Save failed");
+    } finally {
+      setSavingOrg(false);
+    }
   };
 
   const onSaveProfile = async () => {
-    if (newPw && newPw !== confirmPw) { toast.error("Passwords do not match"); return; }
-    if (newPw && newPw.length < 8) { toast.error("Password must be at least 8 characters"); return; }
+    if (newPw && newPw !== confirmPw) {
+      toast.error("Passwords do not match");
+      return;
+    }
+    if (newPw && newPw.length < 8) {
+      toast.error("Password must be at least 8 characters");
+      return;
+    }
     setSavingProfile(true);
     try {
-      await updateProfileFn({ data: { full_name: name, new_password: newPw || undefined, current_password: currentPw || undefined } });
+      await updateProfileFn({
+        data: {
+          full_name: name,
+          new_password: newPw || undefined,
+          current_password: currentPw || undefined,
+        },
+      });
       toast.success("Profile updated");
-      setCurrentPw(""); setNewPw(""); setConfirmPw("");
-    } catch (e: any) { toast.error(e?.message ?? "Update failed"); }
-    finally { setSavingProfile(false); }
+      setCurrentPw("");
+      setNewPw("");
+      setConfirmPw("");
+    } catch (e: any) {
+      toast.error(e?.message ?? "Update failed");
+    } finally {
+      setSavingProfile(false);
+    }
   };
 
   const onSaveBrand = async () => {
     setSavingBrand(true);
     try {
-      await saveBrandFn({ data: { brand_logo_url: logoUrl, brand_primary_color: primary, brand_secondary_color: secondary } });
+      await saveBrandFn({
+        data: {
+          brand_logo_url: logoUrl,
+          brand_primary_color: primary,
+          brand_secondary_color: secondary,
+        },
+      });
       toast.success("Branding saved");
       qc.invalidateQueries({ queryKey: ["settings"] });
-    } catch (e: any) { toast.error(e?.message ?? "Save failed"); }
-    finally { setSavingBrand(false); }
+    } catch (e: any) {
+      toast.error(e?.message ?? "Save failed");
+    } finally {
+      setSavingBrand(false);
+    }
   };
 
   const onSavePref = async () => {
     setSavingPref(true);
     try {
-      await savePrefFn({ data: { pref_timezone: tz, pref_currency: currency, pref_language: language, pref_attribution_window: attribution } });
+      await savePrefFn({
+        data: {
+          pref_timezone: tz,
+          pref_currency: currency,
+          pref_language: language,
+          pref_attribution_window: attribution,
+        },
+      });
       toast.success("Preferences saved");
       qc.invalidateQueries({ queryKey: ["settings"] });
-    } catch (e: any) { toast.error(e?.message ?? "Save failed"); }
-    finally { setSavingPref(false); }
+    } catch (e: any) {
+      toast.error(e?.message ?? "Save failed");
+    } finally {
+      setSavingPref(false);
+    }
   };
 
   const onClearAll = async () => {
-    if (confirmText !== "CLEAR ALL DATA") { toast.error('Type "CLEAR ALL DATA" exactly to confirm'); return; }
+    if (confirmText !== "CLEAR ALL DATA") {
+      toast.error('Type "CLEAR ALL DATA" exactly to confirm');
+      return;
+    }
     setClearing(true);
     try {
       await clearFn({ data: { confirm: "CLEAR ALL DATA" } });
       toast.success("All operational data cleared");
       setConfirmText("");
       qc.invalidateQueries();
-    } catch (e: any) { toast.error(e?.message ?? "Clear failed"); }
-    finally { setClearing(false); }
+    } catch (e: any) {
+      toast.error(e?.message ?? "Clear failed");
+    } finally {
+      setClearing(false);
+    }
   };
 
   return (
     <div className="max-w-5xl space-y-6">
       <div>
         <h1 className="text-2xl font-bold">Settings</h1>
-        <p className="text-muted-foreground text-sm">Manage organization details, profile, branding, preferences, and data.</p>
+        <p className="text-muted-foreground text-sm">
+          Manage organization details, profile, branding, preferences, and data.
+        </p>
       </div>
 
       {/* General Information */}
       <Section icon={Building2} title="General Information">
         <Grid>
           <Field label="Organization Name">
-            <input value={orgName} onChange={(e) => setOrgName(e.target.value)} placeholder="Enter organization name" className={inputCls} />
+            <input
+              value={orgName}
+              onChange={(e) => setOrgName(e.target.value)}
+              placeholder="Enter organization name"
+              className={inputCls}
+            />
           </Field>
           <div />
           <Field label="Email">
-            <input type="email" value={orgEmail} onChange={(e) => setOrgEmail(e.target.value)} placeholder="sales@example.com" className={inputCls} />
+            <input
+              type="email"
+              value={orgEmail}
+              onChange={(e) => setOrgEmail(e.target.value)}
+              placeholder="sales@example.com"
+              className={inputCls}
+            />
           </Field>
           <Field label="Phone">
-            <input value={orgPhone} onChange={(e) => setOrgPhone(e.target.value)} placeholder="+8801XXXXXXXXX" className={inputCls} />
+            <input
+              value={orgPhone}
+              onChange={(e) => setOrgPhone(e.target.value)}
+              placeholder="+8801XXXXXXXXX"
+              className={inputCls}
+            />
           </Field>
         </Grid>
         <Field label="Address" className="mt-4">
-          <textarea value={orgAddress} onChange={(e) => setOrgAddress(e.target.value)} placeholder="Your business address" rows={3} className={inputCls + " resize-y"} />
+          <textarea
+            value={orgAddress}
+            onChange={(e) => setOrgAddress(e.target.value)}
+            placeholder="Your business address"
+            rows={3}
+            className={inputCls + " resize-y"}
+          />
         </Field>
         <FooterButton onClick={onSaveOrg} loading={savingOrg} label="Save Changes" />
       </Section>
@@ -175,7 +282,12 @@ function SettingsPage() {
       <Section icon={UserCog} title="Your Profile">
         <Grid>
           <Field label="Name">
-            <input value={name} onChange={(e) => setName(e.target.value)} placeholder="Your name" className={inputCls} />
+            <input
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              placeholder="Your name"
+              className={inputCls}
+            />
           </Field>
           <Field label="Email Address">
             <input value={email} disabled className={inputCls + " opacity-60 cursor-not-allowed"} />
@@ -183,16 +295,37 @@ function SettingsPage() {
         </Grid>
 
         <div className="mt-6">
-          <div className="flex items-center gap-2 text-sm font-semibold mb-3"><Lock className="size-4 text-primary" />Change Password</div>
+          <div className="flex items-center gap-2 text-sm font-semibold mb-3">
+            <Lock className="size-4 text-primary" />
+            Change Password
+          </div>
           <Field label="Current Password">
-            <input type="password" value={currentPw} onChange={(e) => setCurrentPw(e.target.value)} placeholder="Required only if changing password" className={inputCls} />
+            <input
+              type="password"
+              value={currentPw}
+              onChange={(e) => setCurrentPw(e.target.value)}
+              placeholder="Required only if changing password"
+              className={inputCls}
+            />
           </Field>
           <Grid className="mt-4">
             <Field label="New Password">
-              <input type="password" value={newPw} onChange={(e) => setNewPw(e.target.value)} placeholder="Min 8 characters" className={inputCls} />
+              <input
+                type="password"
+                value={newPw}
+                onChange={(e) => setNewPw(e.target.value)}
+                placeholder="Min 8 characters"
+                className={inputCls}
+              />
             </Field>
             <Field label="Confirm Password">
-              <input type="password" value={confirmPw} onChange={(e) => setConfirmPw(e.target.value)} placeholder="Repeat new password" className={inputCls} />
+              <input
+                type="password"
+                value={confirmPw}
+                onChange={(e) => setConfirmPw(e.target.value)}
+                placeholder="Repeat new password"
+                className={inputCls}
+              />
             </Field>
           </Grid>
         </div>
@@ -204,10 +337,23 @@ function SettingsPage() {
         <Field label="Logo">
           <div className="flex items-center gap-3">
             <div className="size-12 rounded-md bg-surface border border-border grid place-items-center overflow-hidden">
-              {logoUrl ? <img src={logoUrl} alt="logo" className="size-full object-contain" /> : <Palette className="size-5 text-muted-foreground" />}
+              {logoUrl ? (
+                <img src={logoUrl} alt="logo" className="size-full object-contain" />
+              ) : (
+                <Palette className="size-5 text-muted-foreground" />
+              )}
             </div>
-            <input value={logoUrl} onChange={(e) => setLogoUrl(e.target.value)} placeholder="https://… (paste a logo URL)" className={inputCls + " flex-1"} />
-            <button type="button" onClick={() => toast.info("Paste a hosted image URL above")} className="inline-flex items-center gap-2 rounded-lg border border-border bg-surface hover:bg-surface-elevated px-3 py-2 text-xs font-semibold">
+            <input
+              value={logoUrl}
+              onChange={(e) => setLogoUrl(e.target.value)}
+              placeholder="https://… (paste a logo URL)"
+              className={inputCls + " flex-1"}
+            />
+            <button
+              type="button"
+              onClick={() => toast.info("Paste a hosted image URL above")}
+              className="inline-flex items-center gap-2 rounded-lg border border-border bg-surface hover:bg-surface-elevated px-3 py-2 text-xs font-semibold"
+            >
               <Upload className="size-3.5" /> Upload new logo
             </button>
           </div>
@@ -228,22 +374,50 @@ function SettingsPage() {
         <Grid>
           <Field label="Timezone">
             <select value={tz} onChange={(e) => setTz(e.target.value)} className={inputCls}>
-              {TIMEZONES.map((t) => <option key={t} value={t}>{t}</option>)}
+              {TIMEZONES.map((t) => (
+                <option key={t} value={t}>
+                  {t}
+                </option>
+              ))}
             </select>
           </Field>
           <Field label="Currency">
-            <select value={currency} onChange={(e) => setCurrency(e.target.value)} className={inputCls}>
-              {CURRENCIES.map((c) => <option key={c} value={c}>{c}</option>)}
+            <select
+              value={currency}
+              onChange={(e) => setCurrency(e.target.value)}
+              className={inputCls}
+            >
+              {CURRENCIES.map((c) => (
+                <option key={c} value={c}>
+                  {c}
+                </option>
+              ))}
             </select>
           </Field>
           <Field label="Language">
-            <select value={language} onChange={(e) => setLanguage(e.target.value)} className={inputCls}>
-              {LANGUAGES.map((l) => <option key={l} value={l}>{l}</option>)}
+            <select
+              value={language}
+              onChange={(e) => setLanguage(e.target.value)}
+              className={inputCls}
+            >
+              {LANGUAGES.map((l) => (
+                <option key={l} value={l}>
+                  {l}
+                </option>
+              ))}
             </select>
           </Field>
           <Field label="Attribution Window">
-            <select value={attribution} onChange={(e) => setAttribution(e.target.value)} className={inputCls}>
-              {ATTRIBUTION.map((a) => <option key={a} value={a}>{a}</option>)}
+            <select
+              value={attribution}
+              onChange={(e) => setAttribution(e.target.value)}
+              className={inputCls}
+            >
+              {ATTRIBUTION.map((a) => (
+                <option key={a} value={a}>
+                  {a}
+                </option>
+              ))}
             </select>
           </Field>
         </Grid>
@@ -255,16 +429,37 @@ function SettingsPage() {
         <div className="flex items-center gap-2 text-destructive font-semibold mb-2">
           <AlertTriangle className="size-5" /> Danger Zone — Clear All Data
         </div>
-        <p className="text-sm">This will <strong>permanently delete EVERYTHING</strong> from this theme and rebuild it fresh:</p>
+        <p className="text-sm">
+          This will <strong>permanently delete EVERYTHING</strong> from this theme and rebuild it
+          fresh:
+        </p>
         <ul className="mt-3 space-y-1 text-sm list-disc list-inside text-foreground/85">
-          <li>All <strong>Clients</strong> &amp; client portals</li>
-          <li>All <strong>Ad Accounts</strong> (Meta + manual)</li>
-          <li>All <strong>Campaigns</strong>, <strong>Ad Sets</strong>, <strong>Ads</strong></li>
-          <li>All <strong>Insights</strong>, <strong>Reports</strong>, <strong>Budget</strong> &amp; <strong>Deposits</strong></li>
-          <li>All <strong>Alerts</strong> &amp; activity log</li>
-          <li>All <strong>cached numbers</strong> shown on the Dashboard (Total Spend, Reach, Results, etc.)</li>
-          <li><strong>Meta access token</strong> &amp; account mapping</li>
-          <li>All <strong>locally saved preferences</strong></li>
+          <li>
+            All <strong>Clients</strong> &amp; client portals
+          </li>
+          <li>
+            All <strong>Ad Accounts</strong> (Meta + manual)
+          </li>
+          <li>
+            All <strong>Campaigns</strong>, <strong>Ad Sets</strong>, <strong>Ads</strong>
+          </li>
+          <li>
+            All <strong>Insights</strong>, <strong>Reports</strong>, <strong>Budget</strong> &amp;{" "}
+            <strong>Deposits</strong>
+          </li>
+          <li>
+            All <strong>Alerts</strong> &amp; activity log
+          </li>
+          <li>
+            All <strong>cached numbers</strong> shown on the Dashboard (Total Spend, Reach, Results,
+            etc.)
+          </li>
+          <li>
+            <strong>Meta access token</strong> &amp; account mapping
+          </li>
+          <li>
+            All <strong>locally saved preferences</strong>
+          </li>
         </ul>
         <p className="mt-4 text-xs text-muted-foreground">This action cannot be undone.</p>
 
@@ -280,7 +475,12 @@ function SettingsPage() {
             disabled={clearing || confirmText !== "CLEAR ALL DATA"}
             className="inline-flex items-center gap-2 rounded-lg bg-destructive text-destructive-foreground px-4 py-2.5 text-sm font-semibold hover:opacity-90 disabled:opacity-50"
           >
-            {clearing ? <Loader2 className="size-4 animate-spin" /> : <AlertTriangle className="size-4" />} Clear All Data
+            {clearing ? (
+              <Loader2 className="size-4 animate-spin" />
+            ) : (
+              <AlertTriangle className="size-4" />
+            )}{" "}
+            Clear All Data
           </button>
         </div>
       </div>
@@ -291,7 +491,15 @@ function SettingsPage() {
 /* ---------- helpers ---------- */
 const inputCls = "w-full rounded-lg bg-input border border-border px-3 py-2.5 text-sm";
 
-function Section({ icon: Icon, title, children }: { icon: any; title: string; children: React.ReactNode }) {
+function Section({
+  icon: Icon,
+  title,
+  children,
+}: {
+  icon: any;
+  title: string;
+  children: React.ReactNode;
+}) {
   return (
     <div className="glass-card p-6">
       <div className="flex items-center gap-2 mb-4">
@@ -307,10 +515,20 @@ function Grid({ children, className = "" }: { children: React.ReactNode; classNa
   return <div className={`grid sm:grid-cols-2 gap-4 ${className}`}>{children}</div>;
 }
 
-function Field({ label, children, className = "" }: { label: string; children: React.ReactNode; className?: string }) {
+function Field({
+  label,
+  children,
+  className = "",
+}: {
+  label: string;
+  children: React.ReactNode;
+  className?: string;
+}) {
   return (
     <div className={className}>
-      <label className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">{label}</label>
+      <label className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+        {label}
+      </label>
       <div className="mt-1.5">{children}</div>
     </div>
   );
@@ -319,17 +537,39 @@ function Field({ label, children, className = "" }: { label: string; children: R
 function ColorInput({ value, onChange }: { value: string; onChange: (v: string) => void }) {
   return (
     <div className="flex items-center gap-2">
-      <input type="color" value={value} onChange={(e) => onChange(e.target.value)} className="size-10 rounded-md border border-border bg-input cursor-pointer" />
-      <input value={value} onChange={(e) => onChange(e.target.value)} className={inputCls + " flex-1 font-mono"} />
+      <input
+        type="color"
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        className="size-10 rounded-md border border-border bg-input cursor-pointer"
+      />
+      <input
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        className={inputCls + " flex-1 font-mono"}
+      />
     </div>
   );
 }
 
-function FooterButton({ onClick, loading, label }: { onClick: () => void; loading: boolean; label: string }) {
+function FooterButton({
+  onClick,
+  loading,
+  label,
+}: {
+  onClick: () => void;
+  loading: boolean;
+  label: string;
+}) {
   return (
     <div className="mt-5 flex justify-end">
-      <button onClick={onClick} disabled={loading} className="inline-flex items-center gap-2 rounded-lg bg-gradient-to-r from-primary to-primary-glow text-primary-foreground px-4 py-2.5 text-sm font-semibold hover:opacity-90 disabled:opacity-50">
-        {loading ? <Loader2 className="size-4 animate-spin" /> : <Save className="size-4" />} {label}
+      <button
+        onClick={onClick}
+        disabled={loading}
+        className="inline-flex items-center gap-2 rounded-lg bg-gradient-to-r from-primary to-primary-glow text-primary-foreground px-4 py-2.5 text-sm font-semibold hover:opacity-90 disabled:opacity-50"
+      >
+        {loading ? <Loader2 className="size-4 animate-spin" /> : <Save className="size-4" />}{" "}
+        {label}
       </button>
     </div>
   );

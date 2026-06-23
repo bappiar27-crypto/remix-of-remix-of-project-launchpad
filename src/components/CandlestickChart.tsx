@@ -164,8 +164,13 @@ function CandleTooltip({ active, payload, format }: any) {
         className="mt-1.5 pt-1.5 border-t border-border/60 flex items-center justify-between text-[11px]"
         style={{ color: up ? "oklch(0.82 0.16 165)" : "oklch(0.72 0.2 25)" }}
       >
-        <span>{up ? "▲" : "▼"} {fmt(Math.abs(change))}</span>
-        <span>{change >= 0 ? "+" : ""}{changePct.toFixed(1)}%</span>
+        <span>
+          {up ? "▲" : "▼"} {fmt(Math.abs(change))}
+        </span>
+        <span>
+          {change >= 0 ? "+" : ""}
+          {changePct.toFixed(1)}%
+        </span>
       </div>
     </div>
   );
@@ -234,7 +239,11 @@ export default function CandlestickChart({
                 <stop offset="1" stopColor={activeSeries.upColor} stopOpacity={0} />
               </linearGradient>
             </defs>
-            <CartesianGrid stroke="oklch(0.55 0.04 260 / 0.18)" strokeDasharray="2 4" vertical={false} />
+            <CartesianGrid
+              stroke="oklch(0.55 0.04 260 / 0.18)"
+              strokeDasharray="2 4"
+              vertical={false}
+            />
             <XAxis
               dataKey="date"
               stroke="oklch(0.6 0.025 255)"
@@ -253,14 +262,22 @@ export default function CandlestickChart({
               tickFormatter={(v: number) => (v >= 1000 ? `${(v / 1000).toFixed(1)}k` : String(v))}
             />
             <Tooltip
-              cursor={{ stroke: "oklch(0.7 0.04 260 / 0.4)", strokeWidth: 1, strokeDasharray: "3 4" }}
+              cursor={{
+                stroke: "oklch(0.7 0.04 260 / 0.4)",
+                strokeWidth: 1,
+                strokeDasharray: "3 4",
+              }}
               content={<CandleTooltip format={fmt} />}
             />
             <Bar
               dataKey="range"
               isAnimationActive={false}
               shape={(p: any) => (
-                <CandleShape {...p} upColor={activeSeries.upColor} downColor={activeSeries.downColor} />
+                <CandleShape
+                  {...p}
+                  upColor={activeSeries.upColor}
+                  downColor={activeSeries.downColor}
+                />
               )}
             />
           </ComposedChart>

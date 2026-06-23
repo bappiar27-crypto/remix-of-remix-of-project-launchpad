@@ -12,8 +12,14 @@ export function ModeToggle() {
       aria-label="Toggle light/dark mode"
       className="inline-flex items-center gap-1.5 rounded-lg border border-border/60 bg-surface/60 px-2.5 py-1.5 text-xs font-medium hover:bg-surface-elevated transition-all"
     >
-      {mode === "dark" ? <Sun className="size-3.5 text-amber-400" /> : <Moon className="size-3.5 text-indigo-500" />}
-      <span className="hidden sm:inline font-semibold uppercase">{mode === "dark" ? "Light" : "Dark"}</span>
+      {mode === "dark" ? (
+        <Sun className="size-3.5 text-amber-400" />
+      ) : (
+        <Moon className="size-3.5 text-indigo-500" />
+      )}
+      <span className="hidden sm:inline font-semibold uppercase">
+        {mode === "dark" ? "Light" : "Dark"}
+      </span>
     </button>
   );
 }
@@ -47,7 +53,11 @@ export function ThemePicker() {
         <Palette className="size-3.5 text-primary" />
         <div className="hidden sm:flex items-center gap-1">
           {current?.swatch.slice(0, 4).map((c, i) => (
-            <span key={i} className="size-2.5 rounded-full ring-1 ring-white/10" style={{ background: c }} />
+            <span
+              key={i}
+              className="size-2.5 rounded-full ring-1 ring-white/10"
+              style={{ background: c }}
+            />
           ))}
         </div>
       </button>
@@ -59,12 +69,19 @@ export function ThemePicker() {
           {THEMES.map((th) => (
             <button
               key={th.key}
-              onClick={() => { setTheme(th.key as ThemeKey); setOpen(false); }}
+              onClick={() => {
+                setTheme(th.key as ThemeKey);
+                setOpen(false);
+              }}
               className={`w-full flex items-center gap-3 rounded-lg px-2 py-2 text-sm hover:bg-surface ${theme === th.key ? "bg-surface" : ""}`}
             >
               <div className="flex items-center gap-0.5">
                 {th.swatch.map((c, i) => (
-                  <span key={i} className="size-4 first:rounded-l-md last:rounded-r-md ring-1 ring-white/10" style={{ background: c }} />
+                  <span
+                    key={i}
+                    className="size-4 first:rounded-l-md last:rounded-r-md ring-1 ring-white/10"
+                    style={{ background: c }}
+                  />
                 ))}
               </div>
               <span className="flex-1 text-left">{lang === "bn" ? th.labelBn : th.label}</span>
@@ -100,7 +117,10 @@ export function LanguageToggle() {
           {options.map((o) => (
             <button
               key={o.key}
-              onClick={() => { setLang(o.key); setOpen(false); }}
+              onClick={() => {
+                setLang(o.key);
+                setOpen(false);
+              }}
               className={`w-full flex items-center justify-between rounded-lg px-2.5 py-2 text-sm hover:bg-surface ${lang === o.key ? "bg-surface" : ""}`}
             >
               <span>{o.label}</span>

@@ -82,10 +82,10 @@ function Dashboard() {
         datePreset === "Today" || datePreset === "Yesterday"
           ? 1
           : datePreset === "Last 14 days"
-          ? 14
-          : datePreset === "Last 30 days"
-          ? 30
-          : 7;
+            ? 14
+            : datePreset === "Last 30 days"
+              ? 30
+              : 7;
 
       // ✅ Fix #4: Yesterday/Today date logic সঠিক
       const cutoff = new Date();
@@ -197,7 +197,10 @@ function Dashboard() {
       } catch (error) {
         setAutoSyncErrors((prev) => {
           const next = prev + 1;
-          console.error("[auto-sync] failed:", error instanceof Error ? error.message : String(error));
+          console.error(
+            "[auto-sync] failed:",
+            error instanceof Error ? error.message : String(error),
+          );
           if (next >= MAX_SYNC_ERRORS) setAutoSync(false);
           return next;
         });
@@ -205,7 +208,9 @@ function Dashboard() {
     };
 
     const timer = window.setInterval(runSync, minutes * 60_000);
-    const initialTimer = window.setTimeout(() => { if (isMounted) runSync(); }, 5000);
+    const initialTimer = window.setTimeout(() => {
+      if (isMounted) runSync();
+    }, 5000);
 
     return () => {
       isMounted = false;
@@ -356,7 +361,11 @@ function Dashboard() {
                 disabled={syncing}
                 className="inline-flex items-center gap-2 rounded-xl bg-gradient-to-r from-primary to-primary-glow text-primary-foreground px-4 py-2.5 text-sm font-semibold hover:opacity-90 disabled:opacity-50"
               >
-                {syncing ? <Loader2 className="size-4 animate-spin" /> : <RefreshCw className="size-4" />}
+                {syncing ? (
+                  <Loader2 className="size-4 animate-spin" />
+                ) : (
+                  <RefreshCw className="size-4" />
+                )}
                 Sync All Accounts
               </button>
               <button
@@ -364,7 +373,11 @@ function Dashboard() {
                 disabled={retesting}
                 className="inline-flex items-center gap-2 rounded-xl bg-surface-elevated border border-border px-4 py-2.5 text-sm font-medium hover:bg-surface disabled:opacity-50"
               >
-                {retesting ? <Loader2 className="size-4 animate-spin" /> : <ShieldCheck className="size-4" />}
+                {retesting ? (
+                  <Loader2 className="size-4 animate-spin" />
+                ) : (
+                  <ShieldCheck className="size-4" />
+                )}
                 Re-test & Re-import
               </button>
               <button
@@ -372,7 +385,11 @@ function Dashboard() {
                 disabled={refreshingAll}
                 className="inline-flex items-center gap-2 rounded-xl bg-destructive/10 border border-destructive/40 text-destructive px-4 py-2.5 text-sm font-medium hover:bg-destructive/20 disabled:opacity-50"
               >
-                {refreshingAll ? <Loader2 className="size-4 animate-spin" /> : <Trash2 className="size-4" />}
+                {refreshingAll ? (
+                  <Loader2 className="size-4 animate-spin" />
+                ) : (
+                  <Trash2 className="size-4" />
+                )}
                 Refresh all data
               </button>
             </div>
@@ -381,10 +398,30 @@ function Dashboard() {
       </div>
 
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4 gv-stagger">
-        <KpiCard icon={DollarSign} label="Total Spend" value={`$${totals.spend.toFixed(2)}`} accent="from-primary to-primary-glow" />
-        <KpiCard icon={Users} label="Total Reach" value={totals.reach.toLocaleString()} accent="from-accent to-primary" />
-        <KpiCard icon={CheckSquare} label="Results" value={totals.results.toLocaleString()} accent="from-warning to-primary-glow" />
-        <KpiCard icon={Megaphone} label="Active Campaigns" value={String(totals.activeCampaigns)} accent="from-destructive to-accent" />
+        <KpiCard
+          icon={DollarSign}
+          label="Total Spend"
+          value={`$${totals.spend.toFixed(2)}`}
+          accent="from-primary to-primary-glow"
+        />
+        <KpiCard
+          icon={Users}
+          label="Total Reach"
+          value={totals.reach.toLocaleString()}
+          accent="from-accent to-primary"
+        />
+        <KpiCard
+          icon={CheckSquare}
+          label="Results"
+          value={totals.results.toLocaleString()}
+          accent="from-warning to-primary-glow"
+        />
+        <KpiCard
+          icon={Megaphone}
+          label="Active Campaigns"
+          value={String(totals.activeCampaigns)}
+          accent="from-destructive to-accent"
+        />
       </div>
 
       <div className="grid gap-4 lg:grid-cols-3 gv-stagger">
@@ -407,7 +444,13 @@ function Dashboard() {
           <div className="h-64">
             <ResponsiveContainer>
               <PieChart>
-                <Pie data={campaignsByObjective} dataKey="value" innerRadius={48} outerRadius={80} paddingAngle={3}>
+                <Pie
+                  data={campaignsByObjective}
+                  dataKey="value"
+                  innerRadius={48}
+                  outerRadius={80}
+                  paddingAngle={3}
+                >
                   {(campaignsByObjective ?? []).map((_, i) => (
                     <Cell key={i} fill={PIE_COLORS[i % PIE_COLORS.length]} />
                   ))}
@@ -436,17 +479,25 @@ function KpiCard({
 }) {
   return (
     <div className="glass-card gv-lift gv-shimmer p-5 relative overflow-hidden">
-      <div className={`absolute -top-8 -right-8 size-32 rounded-full bg-gradient-to-br ${accent} opacity-20 blur-2xl`} />
+      <div
+        className={`absolute -top-8 -right-8 size-32 rounded-full bg-gradient-to-br ${accent} opacity-20 blur-2xl`}
+      />
       <div className="flex items-start justify-between relative">
-        <div className={`size-10 rounded-xl bg-gradient-to-br ${accent} grid place-items-center text-primary-foreground shadow-lg`}>
+        <div
+          className={`size-10 rounded-xl bg-gradient-to-br ${accent} grid place-items-center text-primary-foreground shadow-lg`}
+        >
           <Icon className="size-5" />
         </div>
         <span className="text-xs font-semibold text-success bg-success/10 rounded-full px-2 py-0.5 inline-flex items-center gap-1.5">
           <span className="size-1.5 rounded-full bg-success gv-pulse-dot" /> live
         </span>
       </div>
-      <div className="mt-4 text-[11px] font-semibold tracking-[0.14em] uppercase text-muted-foreground">{label}</div>
-      <div className="mt-1 text-2xl sm:text-3xl font-bold gv-count tabular-nums truncate">{value}</div>
+      <div className="mt-4 text-[11px] font-semibold tracking-[0.14em] uppercase text-muted-foreground">
+        {label}
+      </div>
+      <div className="mt-1 text-2xl sm:text-3xl font-bold gv-count tabular-nums truncate">
+        {value}
+      </div>
     </div>
   );
 }

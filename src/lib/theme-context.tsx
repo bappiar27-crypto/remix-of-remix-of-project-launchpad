@@ -17,14 +17,34 @@ export const THEMES: {
   labelBn: string;
   swatch: string[];
 }[] = [
-  { key: "ocean",    label: "Ocean Deep",       labelBn: "ওশান ডিপ",           swatch: ["#0c2340", "#1a4a6e", "#2d8a9e", "#5cbdb9"] },
-  { key: "midnight", label: "Midnight Indigo",  labelBn: "মিডনাইট ইন্ডিগো",   swatch: ["#0a0a1a", "#141432", "#1e1e5a", "#4f46e5"] },
-  { key: "emerald",  label: "Emerald Prestige", labelBn: "এমেরাল্ড",            swatch: ["#064e3b", "#0d7a5f", "#c9a84c", "#f5f0e0"] },
-  { key: "noir",     label: "Noir & Gold",      labelBn: "নোয়া অ্যান্ড গোল্ড", swatch: ["#0d0d0d", "#1a1a1a", "#c9a84c", "#f0d78c"] },
+  {
+    key: "ocean",
+    label: "Ocean Deep",
+    labelBn: "ওশান ডিপ",
+    swatch: ["#0c2340", "#1a4a6e", "#2d8a9e", "#5cbdb9"],
+  },
+  {
+    key: "midnight",
+    label: "Midnight Indigo",
+    labelBn: "মিডনাইট ইন্ডিগো",
+    swatch: ["#0a0a1a", "#141432", "#1e1e5a", "#4f46e5"],
+  },
+  {
+    key: "emerald",
+    label: "Emerald Prestige",
+    labelBn: "এমেরাল্ড",
+    swatch: ["#064e3b", "#0d7a5f", "#c9a84c", "#f5f0e0"],
+  },
+  {
+    key: "noir",
+    label: "Noir & Gold",
+    labelBn: "নোয়া অ্যান্ড গোল্ড",
+    swatch: ["#0d0d0d", "#1a1a1a", "#c9a84c", "#f0d78c"],
+  },
 ];
 
 const STORAGE_KEY = "gv.theme";
-const MODE_KEY    = "gv.mode";
+const MODE_KEY = "gv.mode";
 const DEFAULT: ThemeKey = "ocean";
 const DEFAULT_MODE: Mode = "dark";
 
@@ -52,16 +72,22 @@ type Ctx = {
 // ✅ Fix #6: default value-তে warning
 const ThemeCtx = createContext<Ctx>({
   theme: DEFAULT,
-  setTheme: () => { console.warn("[theme] setTheme called outside ThemeProvider"); },
+  setTheme: () => {
+    console.warn("[theme] setTheme called outside ThemeProvider");
+  },
   mode: DEFAULT_MODE,
-  setMode: () => { console.warn("[theme] setMode called outside ThemeProvider"); },
-  toggleMode: () => { console.warn("[theme] toggleMode called outside ThemeProvider"); },
+  setMode: () => {
+    console.warn("[theme] setMode called outside ThemeProvider");
+  },
+  toggleMode: () => {
+    console.warn("[theme] toggleMode called outside ThemeProvider");
+  },
 });
 
 export function ThemeProvider({ children }: { children: ReactNode }) {
   // ✅ Fix #2: initializer function — hydration flash দূর, useEffect লাগছে না
   const [theme, setThemeState] = useState<ThemeKey>(getSavedTheme);
-  const [mode, setModeState]   = useState<Mode>(getSavedMode);
+  const [mode, setModeState] = useState<Mode>(getSavedMode);
 
   // document attributes set — এটা রাখতে হবে (side effect)
   useEffect(() => {
@@ -75,22 +101,31 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
   // ✅ Fix #3 + #4: useCallback + catch-এ warning
   const setTheme = useCallback((t: ThemeKey) => {
     setThemeState(t);
-    try { localStorage.setItem(STORAGE_KEY, t); }
-    catch (e) { console.warn("[theme] localStorage error", e); }
+    try {
+      localStorage.setItem(STORAGE_KEY, t);
+    } catch (e) {
+      console.warn("[theme] localStorage error", e);
+    }
   }, []);
 
   const setMode = useCallback((m: Mode) => {
     setModeState(m);
-    try { localStorage.setItem(MODE_KEY, m); }
-    catch (e) { console.warn("[theme] localStorage error", e); }
+    try {
+      localStorage.setItem(MODE_KEY, m);
+    } catch (e) {
+      console.warn("[theme] localStorage error", e);
+    }
   }, []);
 
   // ✅ Fix #5: stale closure দূর — functional updater ব্যবহার
   const toggleMode = useCallback(() => {
     setModeState((prev) => {
       const next = prev === "dark" ? "light" : "dark";
-      try { localStorage.setItem(MODE_KEY, next); }
-      catch (e) { console.warn("[theme] localStorage error", e); }
+      try {
+        localStorage.setItem(MODE_KEY, next);
+      } catch (e) {
+        console.warn("[theme] localStorage error", e);
+      }
       return next;
     });
   }, []);

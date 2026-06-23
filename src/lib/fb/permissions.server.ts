@@ -30,15 +30,18 @@ export async function checkTokenHealth(): Promise<TokenHealth> {
   const checkedAt = new Date().toISOString();
 
   if (!token) {
-    await supabaseAdmin.from("app_settings").update({
-      token_status: "missing",
-      token_error: "No token configured",
-      token_checked_at: checkedAt,
-      token_scopes: null,
-      token_missing_scopes: null,
-      token_user_name: null,
-      token_expires_at: null,
-    }).eq("id", 1);
+    await supabaseAdmin
+      .from("app_settings")
+      .update({
+        token_status: "missing",
+        token_error: "No token configured",
+        token_checked_at: checkedAt,
+        token_scopes: null,
+        token_missing_scopes: null,
+        token_user_name: null,
+        token_expires_at: null,
+      })
+      .eq("id", 1);
     return { ok: false, status: "missing", error: "No token configured" };
   }
 
@@ -60,33 +63,46 @@ export async function checkTokenHealth(): Promise<TokenHealth> {
       );
       const exp = dbg?.data?.expires_at;
       if (typeof exp === "number" && exp > 0) expiresAt = new Date(exp * 1000).toISOString();
-    } catch {/* ignore — System User tokens often don't expose */}
+    } catch {
+      /* ignore — System User tokens often don't expose */
+    }
 
     const expiringSoon = !!expiresAt && new Date(expiresAt).getTime() - Date.now() < 7 * 86400000;
     const status: TokenHealth["status"] = missing.length
       ? "missing_scopes"
       : expiringSoon
-      ? "expiring"
-      : "ok";
+        ? "expiring"
+        : "ok";
 
-    await supabaseAdmin.from("app_settings").update({
-      token_status: status,
-      token_scopes: granted,
-      token_missing_scopes: missing,
-      token_user_name: me?.name ?? null,
-      token_expires_at: expiresAt,
-      token_checked_at: checkedAt,
-      token_error: null,
-    }).eq("id", 1);
+    await supabaseAdmin
+      .from("app_settings")
+      .update({
+        token_status: status,
+        token_scopes: granted,
+        token_missing_scopes: missing,
+        token_user_name: me?.name ?? null,
+        token_expires_at: expiresAt,
+        token_checked_at: checkedAt,
+        token_error: null,
+      })
+      .eq("id", 1);
 
     // Auto-create alerts (deduped via 1h window)
     if (missing.length) {
-      await dedupedAlert("token_scopes", "warning", "Facebook token missing required scopes",
-        `Missing: ${missing.join(", ")}. Regenerate the System User token with the correct permissions.`);
+      await dedupedAlert(
+        "token_scopes",
+        "warning",
+        "Facebook token missing required scopes",
+        `Missing: ${missing.join(", ")}. Regenerate the System User token with the correct permissions.`,
+      );
     }
     if (expiringSoon) {
-      await dedupedAlert("token_expiring", "warning", "Facebook token expiring soon",
-        `Expires ${new Date(expiresAt!).toLocaleString()}. Regenerate a never-expiring System User token.`);
+      await dedupedAlert(
+        "token_expiring",
+        "warning",
+        "Facebook token expiring soon",
+        `Expires ${new Date(expiresAt!).toLocaleString()}. Regenerate a never-expiring System User token.`,
+      );
     }
 
     return {
@@ -99,11 +115,14 @@ export async function checkTokenHealth(): Promise<TokenHealth> {
     };
   } catch (e: any) {
     const msg = e?.message ?? "Token validation failed";
-    await supabaseAdmin.from("app_settings").update({
-      token_status: "invalid",
-      token_error: msg,
-      token_checked_at: checkedAt,
-    }).eq("id", 1);
+    await supabaseAdmin
+      .from("app_settings")
+      .update({
+        token_status: "invalid",
+        token_error: msg,
+        token_checked_at: checkedAt,
+      })
+      .eq("id", 1);
     await dedupedAlert("token_invalid", "critical", "Facebook token invalid or expired", msg);
     return { ok: false, status: "invalid", error: msg };
   }
@@ -120,10 +139,18 @@ export async function checkConnectionHealth(connectionId: string): Promise<Token
   const checkedAt = new Date().toISOString();
 
   if (!token) {
-    await supabaseAdmin.from("meta_connections").update({
-      token_status: "missing", token_error: "No token configured", token_checked_at: checkedAt,
-      token_scopes: null, token_missing_scopes: null, token_user_name: null, token_expires_at: null,
-    }).eq("id", connectionId);
+    await supabaseAdmin
+      .from("meta_connections")
+      .update({
+        token_status: "missing",
+        token_error: "No token configured",
+        token_checked_at: checkedAt,
+        token_scopes: null,
+        token_missing_scopes: null,
+        token_user_name: null,
+        token_expires_at: null,
+      })
+      .eq("id", connectionId);
     return { ok: false, status: "missing", error: "No token configured" };
   }
   try {
@@ -132,7 +159,9 @@ export async function checkConnectionHealth(connectionId: string): Promise<Token
       `https://graph.facebook.com/v21.0/me/permissions?access_token=${encodeURIComponent(token)}`,
     );
     if (perm.error) throw new Error(perm.error.message);
-    const granted: string[] = (perm.data ?? []).filter((p: any) => p.status === "granted").map((p: any) => p.permission);
+    const granted: string[] = (perm.data ?? [])
+      .filter((p: any) => p.status === "granted")
+      .map((p: any) => p.permission);
     const missing = REQUIRED_SCOPES.filter((sc) => !granted.includes(sc));
     let expiresAt: string | null = null;
     try {
@@ -141,26 +170,55 @@ export async function checkConnectionHealth(connectionId: string): Promise<Token
       );
       const exp = dbg?.data?.expires_at;
       if (typeof exp === "number" && exp > 0) expiresAt = new Date(exp * 1000).toISOString();
-    } catch {/* ignore */}
+    } catch {
+      /* ignore */
+    }
     const expiringSoon = !!expiresAt && new Date(expiresAt).getTime() - Date.now() < 7 * 86400000;
-    const status: TokenHealth["status"] = missing.length ? "missing_scopes" : expiringSoon ? "expiring" : "ok";
-    await supabaseAdmin.from("meta_connections").update({
-      token_status: status, token_scopes: granted, token_missing_scopes: missing,
-      token_user_name: me?.name ?? null, token_expires_at: expiresAt,
-      token_checked_at: checkedAt, token_error: null,
-    }).eq("id", connectionId);
-    return { ok: status === "ok", status, user_name: me?.name ?? null, granted, missing, expires_at: expiresAt };
+    const status: TokenHealth["status"] = missing.length
+      ? "missing_scopes"
+      : expiringSoon
+        ? "expiring"
+        : "ok";
+    await supabaseAdmin
+      .from("meta_connections")
+      .update({
+        token_status: status,
+        token_scopes: granted,
+        token_missing_scopes: missing,
+        token_user_name: me?.name ?? null,
+        token_expires_at: expiresAt,
+        token_checked_at: checkedAt,
+        token_error: null,
+      })
+      .eq("id", connectionId);
+    return {
+      ok: status === "ok",
+      status,
+      user_name: me?.name ?? null,
+      granted,
+      missing,
+      expires_at: expiresAt,
+    };
   } catch (e: any) {
     const msg = e?.message ?? "Token validation failed";
-    await supabaseAdmin.from("meta_connections").update({
-      token_status: "invalid", token_error: msg, token_checked_at: checkedAt,
-    }).eq("id", connectionId);
+    await supabaseAdmin
+      .from("meta_connections")
+      .update({
+        token_status: "invalid",
+        token_error: msg,
+        token_checked_at: checkedAt,
+      })
+      .eq("id", connectionId);
     return { ok: false, status: "invalid", error: msg };
   }
 }
 
-
-async function dedupedAlert(type: string, severity: "info" | "warning" | "critical", title: string, message: string) {
+async function dedupedAlert(
+  type: string,
+  severity: "info" | "warning" | "critical",
+  title: string,
+  message: string,
+) {
   const since = new Date(Date.now() - 60 * 60 * 1000).toISOString();
   const { data: existing } = await supabaseAdmin
     .from("alerts")

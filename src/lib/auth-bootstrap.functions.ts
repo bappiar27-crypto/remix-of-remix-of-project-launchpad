@@ -18,14 +18,14 @@ export const ensureBootstrapAdmin = createServerFn({ method: "POST" })
   .handler(async ({ context }) => {
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
 
-    const { data: authUser, error: userError } =
-      await supabaseAdmin.auth.admin.getUserById(context.userId);
+    const { data: authUser, error: userError } = await supabaseAdmin.auth.admin.getUserById(
+      context.userId,
+    );
     if (userError) throw new Error(userError.message);
 
     const user = authUser.user;
     const email = user?.email ?? "";
-    const fullName =
-      (user?.user_metadata?.full_name as string | undefined) || email || "Admin";
+    const fullName = (user?.user_metadata?.full_name as string | undefined) || email || "Admin";
     const profile: ProfileUpsert = {
       id: context.userId,
       email,

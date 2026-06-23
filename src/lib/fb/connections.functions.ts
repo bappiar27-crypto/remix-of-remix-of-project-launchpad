@@ -24,13 +24,23 @@ export const listConnections = createServerFn({ method: "GET" })
     const { data, error } = await supabaseAdmin.rpc("get_meta_connections_public");
     if (error) throw new Error(error.message);
     return (data ?? []) as Array<{
-      id: string; label: string; fb_app_id: string | null; fb_business_id: string | null;
-      has_token: boolean; has_app_secret: boolean; token_status: string | null;
-      token_scopes: string[] | null; token_missing_scopes: string[] | null;
-      token_user_name: string | null; token_expires_at: string | null;
-      token_checked_at: string | null; token_error: string | null;
-      is_active: boolean; account_count: number;
-      created_at: string; updated_at: string;
+      id: string;
+      label: string;
+      fb_app_id: string | null;
+      fb_business_id: string | null;
+      has_token: boolean;
+      has_app_secret: boolean;
+      token_status: string | null;
+      token_scopes: string[] | null;
+      token_missing_scopes: string[] | null;
+      token_user_name: string | null;
+      token_expires_at: string | null;
+      token_checked_at: string | null;
+      token_error: string | null;
+      is_active: boolean;
+      account_count: number;
+      created_at: string;
+      updated_at: string;
     }>;
   });
 
@@ -83,7 +93,10 @@ export const upsertConnection = createServerFn({ method: "POST" })
     if (data.is_active !== undefined) row.is_active = data.is_active;
 
     if (data.id) {
-      const { error } = await supabaseAdmin.from("meta_connections").update(row as any).eq("id", data.id);
+      const { error } = await supabaseAdmin
+        .from("meta_connections")
+        .update(row as any)
+        .eq("id", data.id);
       if (error) throw new Error(error.message);
       return { id: data.id };
     } else {
@@ -105,7 +118,10 @@ export const removeConnection = createServerFn({ method: "POST" })
   .handler(async ({ data, context }) => {
     const supabaseAdmin = await requireAdminClient(context.userId);
     // Detach ad_accounts (FK ON DELETE SET NULL handles it, but be explicit)
-    await supabaseAdmin.from("ad_accounts").update({ connection_id: null }).eq("connection_id", data.id);
+    await supabaseAdmin
+      .from("ad_accounts")
+      .update({ connection_id: null })
+      .eq("connection_id", data.id);
     const { error } = await supabaseAdmin.from("meta_connections").delete().eq("id", data.id);
     if (error) throw new Error(error.message);
     return { ok: true };
@@ -123,12 +139,22 @@ export const testConnection = createServerFn({ method: "POST" })
       .eq("id", data.id)
       .maybeSingle();
     const token = c?.fb_system_user_token;
-    if (!token) return { ok: false, error: "No token saved for this connection.", accounts: [] as any[] };
+    if (!token)
+      return { ok: false, error: "No token saved for this connection.", accounts: [] as any[] };
     try {
       const { fb } = await import("./api.server");
       const me = await fb.validateToken(token);
       const { accounts, probes } = await fb.listAdAccountsDetailed(token, c?.fb_business_id);
-      return { ok: accounts.length > 0, user: me, accounts, probes, error: accounts.length === 0 ? "Token works but 0 ad accounts visible. Assign ad accounts to this System User with Full Control." : null };
+      return {
+        ok: accounts.length > 0,
+        user: me,
+        accounts,
+        probes,
+        error:
+          accounts.length === 0
+            ? "Token works but 0 ad accounts visible. Assign ad accounts to this System User with Full Control."
+            : null,
+      };
     } catch (e: any) {
       return { ok: false, error: e?.message ?? "Validation failed", accounts: [] as any[] };
     }
@@ -169,18 +195,27 @@ export const importVisibleForConnection = createServerFn({ method: "POST" })
 
     const { fb } = await import("./api.server");
     const { accounts } = await fb.listAdAccountsDetailed(c.fb_system_user_token, c.fb_business_id);
-    if (accounts.length === 0) throw new Error("Facebook returned 0 visible ad accounts for this connection");
+    if (accounts.length === 0)
+      throw new Error("Facebook returned 0 visible ad accounts for this connection");
 
     const bucketSlug = `meta-imported-${c.id.slice(0, 8)}`;
-    const { data: existingClient } = await supabaseAdmin.from("clients").select("id").eq("slug", bucketSlug).maybeSingle();
+    const { data: existingClient } = await supabaseAdmin
+      .from("clients")
+      .select("id")
+      .eq("slug", bucketSlug)
+      .maybeSingle();
     let clientId = existingClient?.id as string | undefined;
     if (!clientId) {
-      const { data: client, error: clientError } = await supabaseAdmin.from("clients").insert({
-        name: `Meta Imported — ${c.label}`,
-        slug: bucketSlug,
-        company: "Facebook Ads",
-        created_by: context.userId,
-      }).select("id").single();
+      const { data: client, error: clientError } = await supabaseAdmin
+        .from("clients")
+        .insert({
+          name: `Meta Imported — ${c.label}`,
+          slug: bucketSlug,
+          company: "Facebook Ads",
+          created_by: context.userId,
+        })
+        .select("id")
+        .single();
       if (clientError) throw new Error(clientError.message);
       clientId = client.id;
     }
@@ -206,7 +241,10 @@ export const importVisibleForConnection = createServerFn({ method: "POST" })
     await supabaseAdmin
       .from("ad_accounts")
       .update({ connection_id: c.id })
-      .in("fb_account_id", accounts.map((a) => a.id));
+      .in(
+        "fb_account_id",
+        accounts.map((a) => a.id),
+      );
 
     return { imported: imported?.length ?? 0 };
   });
@@ -219,7 +257,9 @@ export const getConnectionAccountsStatus = createServerFn({ method: "POST" })
     const supabaseAdmin = await requireAdminClient(context.userId);
     const { data: rows, error } = await supabaseAdmin
       .from("ad_accounts")
-      .select("id,fb_account_id,account_name,currency,last_sync_at,last_sync_status,last_sync_error,total_spend,is_active")
+      .select(
+        "id,fb_account_id,account_name,currency,last_sync_at,last_sync_status,last_sync_error,total_spend,is_active",
+      )
       .eq("connection_id", data.id)
       .order("account_name", { ascending: true });
     if (error) throw new Error(error.message);
@@ -233,10 +273,23 @@ export const getConnectionAccountsStatus = createServerFn({ method: "POST" })
 export const matchCheckConnection = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((d: { id: string; date_preset?: string }) =>
-    z.object({
-      id: z.string().uuid(),
-      date_preset: z.enum(["today", "yesterday", "last_7d", "last_30d", "this_month", "last_month", "maximum"]).optional(),
-    }).parse(d))
+    z
+      .object({
+        id: z.string().uuid(),
+        date_preset: z
+          .enum([
+            "today",
+            "yesterday",
+            "last_7d",
+            "last_30d",
+            "this_month",
+            "last_month",
+            "maximum",
+          ])
+          .optional(),
+      })
+      .parse(d),
+  )
   .handler(async ({ data, context }) => {
     const supabaseAdmin = await requireAdminClient(context.userId);
     const datePreset = data.date_preset ?? "last_7d";
@@ -256,8 +309,16 @@ export const matchCheckConnection = createServerFn({ method: "POST" })
 
     const { fb } = await import("./api.server");
     const results: Array<{
-      ad_account_id: string; fb_account_id: string; account_name: string | null; currency: string | null;
-      live_spend: number; db_spend: number; diff: number; diff_pct: number; ok: boolean; error?: string | null;
+      ad_account_id: string;
+      fb_account_id: string;
+      account_name: string | null;
+      currency: string | null;
+      live_spend: number;
+      db_spend: number;
+      diff: number;
+      diff_pct: number;
+      ok: boolean;
+      error?: string | null;
     }> = [];
 
     for (const a of accts ?? []) {
@@ -281,17 +342,30 @@ export const matchCheckConnection = createServerFn({ method: "POST" })
           dbSpend = (rows ?? []).reduce((s: number, r: any) => s + (Number(r.spend) || 0), 0);
         }
         const diff = liveSpend - dbSpend;
-        const diff_pct = dbSpend > 0 ? (diff / dbSpend) * 100 : (liveSpend > 0 ? 100 : 0);
+        const diff_pct = dbSpend > 0 ? (diff / dbSpend) * 100 : liveSpend > 0 ? 100 : 0;
         results.push({
-          ad_account_id: a.id, fb_account_id: a.fb_account_id, account_name: a.account_name,
-          currency: a.currency, live_spend: liveSpend, db_spend: dbSpend, diff, diff_pct,
+          ad_account_id: a.id,
+          fb_account_id: a.fb_account_id,
+          account_name: a.account_name,
+          currency: a.currency,
+          live_spend: liveSpend,
+          db_spend: dbSpend,
+          diff,
+          diff_pct,
           ok: Math.abs(diff_pct) < 1,
         });
       } catch (e: any) {
         results.push({
-          ad_account_id: a.id, fb_account_id: a.fb_account_id, account_name: a.account_name,
-          currency: a.currency, live_spend: 0, db_spend: Number(a.total_spend ?? 0),
-          diff: 0, diff_pct: 0, ok: false, error: e?.message ?? "Failed",
+          ad_account_id: a.id,
+          fb_account_id: a.fb_account_id,
+          account_name: a.account_name,
+          currency: a.currency,
+          live_spend: 0,
+          db_spend: Number(a.total_spend ?? 0),
+          diff: 0,
+          diff_pct: 0,
+          ok: false,
+          error: e?.message ?? "Failed",
         });
       }
     }

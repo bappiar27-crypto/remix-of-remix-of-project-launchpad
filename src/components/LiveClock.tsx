@@ -7,11 +7,16 @@ function formatBD(d: Date, lang: "en" | "bn") {
   try {
     const locale = lang === "bn" ? "bn-BD" : "en-GB";
     const timeStr = new Intl.DateTimeFormat(locale, {
-      hour: "2-digit", minute: "2-digit", second: "2-digit",
-      hour12: true, timeZone: "Asia/Dhaka",
+      hour: "2-digit",
+      minute: "2-digit",
+      second: "2-digit",
+      hour12: true,
+      timeZone: "Asia/Dhaka",
     }).format(d);
     const dateStr = new Intl.DateTimeFormat(locale, {
-      month: "short", day: "numeric", year: "numeric",
+      month: "short",
+      day: "numeric",
+      year: "numeric",
       timeZone: "Asia/Dhaka",
     }).format(d);
     return { timeStr, dateStr };
