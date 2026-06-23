@@ -9,38 +9,289 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
+import { Route as AuthRouteImport } from './routes/auth'
+import { Route as AuthenticatedRouteRouteImport } from './routes/_authenticated/route'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as PortalSlugRouteImport } from './routes/portal.$slug'
+import { Route as AuthenticatedSyncActivityRouteImport } from './routes/_authenticated/sync-activity'
+import { Route as AuthenticatedSettingsRouteImport } from './routes/_authenticated/settings'
+import { Route as AuthenticatedReportsRouteImport } from './routes/_authenticated/reports'
+import { Route as AuthenticatedInsightsRouteImport } from './routes/_authenticated/insights'
+import { Route as AuthenticatedFacebookMarketingApiRouteImport } from './routes/_authenticated/facebook-marketing-api'
+import { Route as AuthenticatedDashboardRouteImport } from './routes/_authenticated/dashboard'
+import { Route as AuthenticatedClientsRouteImport } from './routes/_authenticated/clients'
+import { Route as AuthenticatedCampaignsRouteImport } from './routes/_authenticated/campaigns'
+import { Route as AuthenticatedBudgetTrackerRouteImport } from './routes/_authenticated/budget-tracker'
+import { Route as AuthenticatedAlertsRouteImport } from './routes/_authenticated/alerts'
+import { Route as AuthenticatedAdsRouteImport } from './routes/_authenticated/ads'
+import { Route as AuthenticatedAdSetsRouteImport } from './routes/_authenticated/ad-sets'
+import { Route as AuthenticatedClientsNewRouteImport } from './routes/_authenticated/clients_.new'
+import { Route as ApiPublicHooksSyncAllRouteImport } from './routes/api/public/hooks/sync-all'
+import { Route as ApiPublicHooksMetaWebhookRouteImport } from './routes/api/public/hooks/meta-webhook'
+import { Route as AuthenticatedClientsSlugReportRouteImport } from './routes/_authenticated/clients_.$slug.report'
 
+const AuthRoute = AuthRouteImport.update({
+  id: '/auth',
+  path: '/auth',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AuthenticatedRouteRoute = AuthenticatedRouteRouteImport.update({
+  id: '/_authenticated',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
   getParentRoute: () => rootRouteImport,
 } as any)
+const PortalSlugRoute = PortalSlugRouteImport.update({
+  id: '/portal/$slug',
+  path: '/portal/$slug',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AuthenticatedSyncActivityRoute =
+  AuthenticatedSyncActivityRouteImport.update({
+    id: '/sync-activity',
+    path: '/sync-activity',
+    getParentRoute: () => AuthenticatedRouteRoute,
+  } as any)
+const AuthenticatedSettingsRoute = AuthenticatedSettingsRouteImport.update({
+  id: '/settings',
+  path: '/settings',
+  getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
+const AuthenticatedReportsRoute = AuthenticatedReportsRouteImport.update({
+  id: '/reports',
+  path: '/reports',
+  getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
+const AuthenticatedInsightsRoute = AuthenticatedInsightsRouteImport.update({
+  id: '/insights',
+  path: '/insights',
+  getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
+const AuthenticatedFacebookMarketingApiRoute =
+  AuthenticatedFacebookMarketingApiRouteImport.update({
+    id: '/facebook-marketing-api',
+    path: '/facebook-marketing-api',
+    getParentRoute: () => AuthenticatedRouteRoute,
+  } as any)
+const AuthenticatedDashboardRoute = AuthenticatedDashboardRouteImport.update({
+  id: '/dashboard',
+  path: '/dashboard',
+  getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
+const AuthenticatedClientsRoute = AuthenticatedClientsRouteImport.update({
+  id: '/clients',
+  path: '/clients',
+  getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
+const AuthenticatedCampaignsRoute = AuthenticatedCampaignsRouteImport.update({
+  id: '/campaigns',
+  path: '/campaigns',
+  getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
+const AuthenticatedBudgetTrackerRoute =
+  AuthenticatedBudgetTrackerRouteImport.update({
+    id: '/budget-tracker',
+    path: '/budget-tracker',
+    getParentRoute: () => AuthenticatedRouteRoute,
+  } as any)
+const AuthenticatedAlertsRoute = AuthenticatedAlertsRouteImport.update({
+  id: '/alerts',
+  path: '/alerts',
+  getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
+const AuthenticatedAdsRoute = AuthenticatedAdsRouteImport.update({
+  id: '/ads',
+  path: '/ads',
+  getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
+const AuthenticatedAdSetsRoute = AuthenticatedAdSetsRouteImport.update({
+  id: '/ad-sets',
+  path: '/ad-sets',
+  getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
+const AuthenticatedClientsNewRoute = AuthenticatedClientsNewRouteImport.update({
+  id: '/clients_/new',
+  path: '/clients/new',
+  getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
+const ApiPublicHooksSyncAllRoute = ApiPublicHooksSyncAllRouteImport.update({
+  id: '/api/public/hooks/sync-all',
+  path: '/api/public/hooks/sync-all',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiPublicHooksMetaWebhookRoute =
+  ApiPublicHooksMetaWebhookRouteImport.update({
+    id: '/api/public/hooks/meta-webhook',
+    path: '/api/public/hooks/meta-webhook',
+    getParentRoute: () => rootRouteImport,
+  } as any)
+const AuthenticatedClientsSlugReportRoute =
+  AuthenticatedClientsSlugReportRouteImport.update({
+    id: '/clients_/$slug/report',
+    path: '/clients/$slug/report',
+    getParentRoute: () => AuthenticatedRouteRoute,
+  } as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/auth': typeof AuthRoute
+  '/ad-sets': typeof AuthenticatedAdSetsRoute
+  '/ads': typeof AuthenticatedAdsRoute
+  '/alerts': typeof AuthenticatedAlertsRoute
+  '/budget-tracker': typeof AuthenticatedBudgetTrackerRoute
+  '/campaigns': typeof AuthenticatedCampaignsRoute
+  '/clients': typeof AuthenticatedClientsRoute
+  '/dashboard': typeof AuthenticatedDashboardRoute
+  '/facebook-marketing-api': typeof AuthenticatedFacebookMarketingApiRoute
+  '/insights': typeof AuthenticatedInsightsRoute
+  '/reports': typeof AuthenticatedReportsRoute
+  '/settings': typeof AuthenticatedSettingsRoute
+  '/sync-activity': typeof AuthenticatedSyncActivityRoute
+  '/portal/$slug': typeof PortalSlugRoute
+  '/clients/new': typeof AuthenticatedClientsNewRoute
+  '/clients/$slug/report': typeof AuthenticatedClientsSlugReportRoute
+  '/api/public/hooks/meta-webhook': typeof ApiPublicHooksMetaWebhookRoute
+  '/api/public/hooks/sync-all': typeof ApiPublicHooksSyncAllRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/auth': typeof AuthRoute
+  '/ad-sets': typeof AuthenticatedAdSetsRoute
+  '/ads': typeof AuthenticatedAdsRoute
+  '/alerts': typeof AuthenticatedAlertsRoute
+  '/budget-tracker': typeof AuthenticatedBudgetTrackerRoute
+  '/campaigns': typeof AuthenticatedCampaignsRoute
+  '/clients': typeof AuthenticatedClientsRoute
+  '/dashboard': typeof AuthenticatedDashboardRoute
+  '/facebook-marketing-api': typeof AuthenticatedFacebookMarketingApiRoute
+  '/insights': typeof AuthenticatedInsightsRoute
+  '/reports': typeof AuthenticatedReportsRoute
+  '/settings': typeof AuthenticatedSettingsRoute
+  '/sync-activity': typeof AuthenticatedSyncActivityRoute
+  '/portal/$slug': typeof PortalSlugRoute
+  '/clients/new': typeof AuthenticatedClientsNewRoute
+  '/clients/$slug/report': typeof AuthenticatedClientsSlugReportRoute
+  '/api/public/hooks/meta-webhook': typeof ApiPublicHooksMetaWebhookRoute
+  '/api/public/hooks/sync-all': typeof ApiPublicHooksSyncAllRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
+  '/_authenticated': typeof AuthenticatedRouteRouteWithChildren
+  '/auth': typeof AuthRoute
+  '/_authenticated/ad-sets': typeof AuthenticatedAdSetsRoute
+  '/_authenticated/ads': typeof AuthenticatedAdsRoute
+  '/_authenticated/alerts': typeof AuthenticatedAlertsRoute
+  '/_authenticated/budget-tracker': typeof AuthenticatedBudgetTrackerRoute
+  '/_authenticated/campaigns': typeof AuthenticatedCampaignsRoute
+  '/_authenticated/clients': typeof AuthenticatedClientsRoute
+  '/_authenticated/dashboard': typeof AuthenticatedDashboardRoute
+  '/_authenticated/facebook-marketing-api': typeof AuthenticatedFacebookMarketingApiRoute
+  '/_authenticated/insights': typeof AuthenticatedInsightsRoute
+  '/_authenticated/reports': typeof AuthenticatedReportsRoute
+  '/_authenticated/settings': typeof AuthenticatedSettingsRoute
+  '/_authenticated/sync-activity': typeof AuthenticatedSyncActivityRoute
+  '/portal/$slug': typeof PortalSlugRoute
+  '/_authenticated/clients_/new': typeof AuthenticatedClientsNewRoute
+  '/_authenticated/clients_/$slug/report': typeof AuthenticatedClientsSlugReportRoute
+  '/api/public/hooks/meta-webhook': typeof ApiPublicHooksMetaWebhookRoute
+  '/api/public/hooks/sync-all': typeof ApiPublicHooksSyncAllRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/'
+  fullPaths:
+    | '/'
+    | '/auth'
+    | '/ad-sets'
+    | '/ads'
+    | '/alerts'
+    | '/budget-tracker'
+    | '/campaigns'
+    | '/clients'
+    | '/dashboard'
+    | '/facebook-marketing-api'
+    | '/insights'
+    | '/reports'
+    | '/settings'
+    | '/sync-activity'
+    | '/portal/$slug'
+    | '/clients/new'
+    | '/clients/$slug/report'
+    | '/api/public/hooks/meta-webhook'
+    | '/api/public/hooks/sync-all'
   fileRoutesByTo: FileRoutesByTo
-  to: '/'
-  id: '__root__' | '/'
+  to:
+    | '/'
+    | '/auth'
+    | '/ad-sets'
+    | '/ads'
+    | '/alerts'
+    | '/budget-tracker'
+    | '/campaigns'
+    | '/clients'
+    | '/dashboard'
+    | '/facebook-marketing-api'
+    | '/insights'
+    | '/reports'
+    | '/settings'
+    | '/sync-activity'
+    | '/portal/$slug'
+    | '/clients/new'
+    | '/clients/$slug/report'
+    | '/api/public/hooks/meta-webhook'
+    | '/api/public/hooks/sync-all'
+  id:
+    | '__root__'
+    | '/'
+    | '/_authenticated'
+    | '/auth'
+    | '/_authenticated/ad-sets'
+    | '/_authenticated/ads'
+    | '/_authenticated/alerts'
+    | '/_authenticated/budget-tracker'
+    | '/_authenticated/campaigns'
+    | '/_authenticated/clients'
+    | '/_authenticated/dashboard'
+    | '/_authenticated/facebook-marketing-api'
+    | '/_authenticated/insights'
+    | '/_authenticated/reports'
+    | '/_authenticated/settings'
+    | '/_authenticated/sync-activity'
+    | '/portal/$slug'
+    | '/_authenticated/clients_/new'
+    | '/_authenticated/clients_/$slug/report'
+    | '/api/public/hooks/meta-webhook'
+    | '/api/public/hooks/sync-all'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
+  AuthenticatedRouteRoute: typeof AuthenticatedRouteRouteWithChildren
+  AuthRoute: typeof AuthRoute
+  PortalSlugRoute: typeof PortalSlugRoute
+  ApiPublicHooksMetaWebhookRoute: typeof ApiPublicHooksMetaWebhookRoute
+  ApiPublicHooksSyncAllRoute: typeof ApiPublicHooksSyncAllRoute
 }
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
+    '/auth': {
+      id: '/auth'
+      path: '/auth'
+      fullPath: '/auth'
+      preLoaderRoute: typeof AuthRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/_authenticated': {
+      id: '/_authenticated'
+      path: ''
+      fullPath: '/'
+      preLoaderRoute: typeof AuthenticatedRouteRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/': {
       id: '/'
       path: '/'
@@ -48,22 +299,174 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/portal/$slug': {
+      id: '/portal/$slug'
+      path: '/portal/$slug'
+      fullPath: '/portal/$slug'
+      preLoaderRoute: typeof PortalSlugRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/_authenticated/sync-activity': {
+      id: '/_authenticated/sync-activity'
+      path: '/sync-activity'
+      fullPath: '/sync-activity'
+      preLoaderRoute: typeof AuthenticatedSyncActivityRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/settings': {
+      id: '/_authenticated/settings'
+      path: '/settings'
+      fullPath: '/settings'
+      preLoaderRoute: typeof AuthenticatedSettingsRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/reports': {
+      id: '/_authenticated/reports'
+      path: '/reports'
+      fullPath: '/reports'
+      preLoaderRoute: typeof AuthenticatedReportsRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/insights': {
+      id: '/_authenticated/insights'
+      path: '/insights'
+      fullPath: '/insights'
+      preLoaderRoute: typeof AuthenticatedInsightsRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/facebook-marketing-api': {
+      id: '/_authenticated/facebook-marketing-api'
+      path: '/facebook-marketing-api'
+      fullPath: '/facebook-marketing-api'
+      preLoaderRoute: typeof AuthenticatedFacebookMarketingApiRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/dashboard': {
+      id: '/_authenticated/dashboard'
+      path: '/dashboard'
+      fullPath: '/dashboard'
+      preLoaderRoute: typeof AuthenticatedDashboardRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/clients': {
+      id: '/_authenticated/clients'
+      path: '/clients'
+      fullPath: '/clients'
+      preLoaderRoute: typeof AuthenticatedClientsRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/campaigns': {
+      id: '/_authenticated/campaigns'
+      path: '/campaigns'
+      fullPath: '/campaigns'
+      preLoaderRoute: typeof AuthenticatedCampaignsRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/budget-tracker': {
+      id: '/_authenticated/budget-tracker'
+      path: '/budget-tracker'
+      fullPath: '/budget-tracker'
+      preLoaderRoute: typeof AuthenticatedBudgetTrackerRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/alerts': {
+      id: '/_authenticated/alerts'
+      path: '/alerts'
+      fullPath: '/alerts'
+      preLoaderRoute: typeof AuthenticatedAlertsRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/ads': {
+      id: '/_authenticated/ads'
+      path: '/ads'
+      fullPath: '/ads'
+      preLoaderRoute: typeof AuthenticatedAdsRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/ad-sets': {
+      id: '/_authenticated/ad-sets'
+      path: '/ad-sets'
+      fullPath: '/ad-sets'
+      preLoaderRoute: typeof AuthenticatedAdSetsRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/clients_/new': {
+      id: '/_authenticated/clients_/new'
+      path: '/clients/new'
+      fullPath: '/clients/new'
+      preLoaderRoute: typeof AuthenticatedClientsNewRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/api/public/hooks/sync-all': {
+      id: '/api/public/hooks/sync-all'
+      path: '/api/public/hooks/sync-all'
+      fullPath: '/api/public/hooks/sync-all'
+      preLoaderRoute: typeof ApiPublicHooksSyncAllRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/public/hooks/meta-webhook': {
+      id: '/api/public/hooks/meta-webhook'
+      path: '/api/public/hooks/meta-webhook'
+      fullPath: '/api/public/hooks/meta-webhook'
+      preLoaderRoute: typeof ApiPublicHooksMetaWebhookRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/_authenticated/clients_/$slug/report': {
+      id: '/_authenticated/clients_/$slug/report'
+      path: '/clients/$slug/report'
+      fullPath: '/clients/$slug/report'
+      preLoaderRoute: typeof AuthenticatedClientsSlugReportRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
   }
 }
 
+interface AuthenticatedRouteRouteChildren {
+  AuthenticatedAdSetsRoute: typeof AuthenticatedAdSetsRoute
+  AuthenticatedAdsRoute: typeof AuthenticatedAdsRoute
+  AuthenticatedAlertsRoute: typeof AuthenticatedAlertsRoute
+  AuthenticatedBudgetTrackerRoute: typeof AuthenticatedBudgetTrackerRoute
+  AuthenticatedCampaignsRoute: typeof AuthenticatedCampaignsRoute
+  AuthenticatedClientsRoute: typeof AuthenticatedClientsRoute
+  AuthenticatedDashboardRoute: typeof AuthenticatedDashboardRoute
+  AuthenticatedFacebookMarketingApiRoute: typeof AuthenticatedFacebookMarketingApiRoute
+  AuthenticatedInsightsRoute: typeof AuthenticatedInsightsRoute
+  AuthenticatedReportsRoute: typeof AuthenticatedReportsRoute
+  AuthenticatedSettingsRoute: typeof AuthenticatedSettingsRoute
+  AuthenticatedSyncActivityRoute: typeof AuthenticatedSyncActivityRoute
+  AuthenticatedClientsNewRoute: typeof AuthenticatedClientsNewRoute
+  AuthenticatedClientsSlugReportRoute: typeof AuthenticatedClientsSlugReportRoute
+}
+
+const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
+  AuthenticatedAdSetsRoute: AuthenticatedAdSetsRoute,
+  AuthenticatedAdsRoute: AuthenticatedAdsRoute,
+  AuthenticatedAlertsRoute: AuthenticatedAlertsRoute,
+  AuthenticatedBudgetTrackerRoute: AuthenticatedBudgetTrackerRoute,
+  AuthenticatedCampaignsRoute: AuthenticatedCampaignsRoute,
+  AuthenticatedClientsRoute: AuthenticatedClientsRoute,
+  AuthenticatedDashboardRoute: AuthenticatedDashboardRoute,
+  AuthenticatedFacebookMarketingApiRoute:
+    AuthenticatedFacebookMarketingApiRoute,
+  AuthenticatedInsightsRoute: AuthenticatedInsightsRoute,
+  AuthenticatedReportsRoute: AuthenticatedReportsRoute,
+  AuthenticatedSettingsRoute: AuthenticatedSettingsRoute,
+  AuthenticatedSyncActivityRoute: AuthenticatedSyncActivityRoute,
+  AuthenticatedClientsNewRoute: AuthenticatedClientsNewRoute,
+  AuthenticatedClientsSlugReportRoute: AuthenticatedClientsSlugReportRoute,
+}
+
+const AuthenticatedRouteRouteWithChildren =
+  AuthenticatedRouteRoute._addFileChildren(AuthenticatedRouteRouteChildren)
+
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
+  AuthenticatedRouteRoute: AuthenticatedRouteRouteWithChildren,
+  AuthRoute: AuthRoute,
+  PortalSlugRoute: PortalSlugRoute,
+  ApiPublicHooksMetaWebhookRoute: ApiPublicHooksMetaWebhookRoute,
+  ApiPublicHooksSyncAllRoute: ApiPublicHooksSyncAllRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
   ._addFileTypes<FileRouteTypes>()
-
-import type { getRouter } from './router.tsx'
-import type { startInstance } from './start.ts'
-declare module '@tanstack/react-start' {
-  interface Register {
-    ssr: true
-    router: Awaited<ReturnType<typeof getRouter>>
-    config: Awaited<ReturnType<typeof startInstance.getOptions>>
-  }
-}
