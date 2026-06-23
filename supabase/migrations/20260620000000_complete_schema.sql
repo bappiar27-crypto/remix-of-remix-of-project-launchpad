@@ -1,5 +1,14 @@
+-- ============================================================
+-- COMPLETE FIXED SCHEMA — All issues resolved
+-- Run ORDER:
+--   1. pg_cron & pg_net extensions (in Supabase Dashboard > Extensions)
+--   2. This entire file in SQL Editor
+-- ============================================================
+
 -- ============ EXTENSIONS ============
-CREATE EXTENSION IF NOT EXISTS pg_cron;
+CREATE EXTENSION IF NOT EXISTS pg_cron WITH SCHEMA extensions;
+CREATE EXTENSION IF NOT EXISTS pg_net  WITH SCHEMA extensions;
+CREATE EXTENSION IF NOT EXISTS pgcrypto;  -- for password hashing (crypt/gen_salt)
 
 -- ============ ENUMS ============
 CREATE TYPE public.app_role AS ENUM ('admin', 'member');
@@ -58,7 +67,7 @@ CREATE POLICY "user_roles_select_own"
   ON public.user_roles FOR SELECT TO authenticated
   USING (auth.uid() = user_id);
 
--- ============ has_role & is_admin (user_roles এর পরে) ============
+-- ============ has_role & is_admin ============
 CREATE OR REPLACE FUNCTION public.has_role(_user_id uuid, _role public.app_role)
 RETURNS boolean
 LANGUAGE sql STABLE SECURITY INVOKER SET search_path TO 'public' AS $$
@@ -78,8 +87,12 @@ LANGUAGE sql STABLE SECURITY INVOKER SET search_path TO 'public' AS $$
 $$;
 
 -- ============ HANDLE NEW USER ============
+-- FIX: Advisory lock দিয়ে race condition সমাধান করা হয়েছে।
+--      প্রথম user সবসময় admin হবে, একই সময়ে দুইজন signup করলেও সমস্যা হবে না।
 CREATE OR REPLACE FUNCTION public.handle_new_user()
 RETURNS TRIGGER LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
+DECLARE
+  _assigned_role public.app_role;
 BEGIN
   INSERT INTO public.profiles (id, email, full_name)
   VALUES (
@@ -92,15 +105,17 @@ BEGIN
       full_name  = COALESCE(public.profiles.full_name, EXCLUDED.full_name),
       updated_at = now();
 
+  -- Advisory lock: একই সময়ে দুইজন first-admin হওয়া আটকায়
+  PERFORM pg_advisory_xact_lock(hashtext('first_admin_lock'));
+
+  SELECT CASE
+    WHEN NOT EXISTS (SELECT 1 FROM public.user_roles WHERE role = 'admin')
+    THEN 'admin'::public.app_role
+    ELSE 'member'::public.app_role
+  END INTO _assigned_role;
+
   INSERT INTO public.user_roles (user_id, role)
-  VALUES (
-    NEW.id,
-    CASE
-      WHEN NOT EXISTS (SELECT 1 FROM public.user_roles WHERE role = 'admin')
-      THEN 'admin'::public.app_role
-      ELSE 'member'::public.app_role
-    END
-  )
+  VALUES (NEW.id, _assigned_role)
   ON CONFLICT (user_id, role) DO NOTHING;
 
   RETURN NEW;
@@ -150,24 +165,29 @@ CREATE POLICY "app_settings_no_direct_access"
 INSERT INTO public.app_settings (id) VALUES (1) ON CONFLICT DO NOTHING;
 
 -- ============ META CONNECTIONS ============
+-- FIX: fb_system_user_token ও fb_app_secret এর জন্য
+--      encrypted_ কলাম যোগ করা হয়েছে।
+--      Plain text এর পরিবর্তে এই কলামগুলো ব্যবহার করুন।
 CREATE TABLE public.meta_connections (
-  id                   uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-  label                text NOT NULL,
-  fb_app_id            text,
-  fb_app_secret        text,
-  fb_business_id       text,
-  fb_system_user_token text,
-  token_status         text,
-  token_scopes         text[],
-  token_missing_scopes text[],
-  token_user_name      text,
-  token_expires_at     timestamptz,
-  token_checked_at     timestamptz,
-  token_error          text,
-  is_active            boolean NOT NULL DEFAULT true,
-  created_by           uuid REFERENCES auth.users(id),
-  created_at           timestamptz NOT NULL DEFAULT now(),
-  updated_at           timestamptz NOT NULL DEFAULT now()
+  id                        uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  label                     text NOT NULL,
+  fb_app_id                 text,
+  fb_business_id            text,
+  -- Sensitive fields: application layer থেকে encrypt করে store করুন
+  fb_app_secret_encrypted   text,   -- AES-256 encrypted (app layer)
+  fb_system_user_token_enc  text,   -- AES-256 encrypted (app layer)
+  -- Token metadata (non-sensitive)
+  token_status              text,
+  token_scopes              text[],
+  token_missing_scopes      text[],
+  token_user_name           text,
+  token_expires_at          timestamptz,
+  token_checked_at          timestamptz,
+  token_error               text,
+  is_active                 boolean NOT NULL DEFAULT true,
+  created_by                uuid REFERENCES auth.users(id),
+  created_at                timestamptz NOT NULL DEFAULT now(),
+  updated_at                timestamptz NOT NULL DEFAULT now()
 );
 GRANT SELECT, INSERT, UPDATE, DELETE ON public.meta_connections TO authenticated;
 GRANT ALL ON public.meta_connections TO service_role;
@@ -180,7 +200,7 @@ CREATE TRIGGER meta_connections_updated_at
   BEFORE UPDATE ON public.meta_connections
   FOR EACH ROW EXECUTE FUNCTION public.tg_set_updated_at();
 
--- ============ generate_client_code (clients এর আগে) ============
+-- ============ generate_client_code ============
 CREATE OR REPLACE FUNCTION public.generate_client_code()
 RETURNS text
 LANGUAGE plpgsql VOLATILE SET search_path = public AS $$
@@ -200,6 +220,8 @@ BEGIN
 END; $$;
 
 -- ============ CLIENTS ============
+-- FIX: portal_password কলামে plain text এর পরিবর্তে
+--      bcrypt hash store করার জন্য comment ও trigger যোগ করা হয়েছে।
 CREATE TABLE public.clients (
   id                 UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   name               TEXT NOT NULL,
@@ -213,6 +235,9 @@ CREATE TABLE public.clients (
   monthly_budget     NUMERIC(14,2) DEFAULT 0,
   logo_url           TEXT,
   brand_color        TEXT,
+  -- FIX: portal_password এখন bcrypt hash store করে।
+  --      Insert/Update করার সময় crypt(plain_password, gen_salt('bf')) ব্যবহার করুন।
+  --      Verify করতে: crypt(input, portal_password) = portal_password
   portal_password    TEXT,
   portal_token       TEXT,
   website            TEXT,
@@ -236,9 +261,31 @@ CREATE POLICY "clients_admin_modify"
   ON public.clients FOR ALL TO authenticated
   USING (public.has_role(auth.uid(), 'admin'::public.app_role))
   WITH CHECK (public.has_role(auth.uid(), 'admin'::public.app_role));
+
+-- FIX: portal_password auto-hash trigger
+--      যদি portal_password plain text হিসেবে আসে এবং '$2a$' দিয়ে শুরু না হয়,
+--      তাহলে automatically bcrypt hash করে store করবে।
+CREATE OR REPLACE FUNCTION public.tg_hash_portal_password()
+RETURNS TRIGGER LANGUAGE plpgsql SET search_path = public AS $$
+BEGIN
+  IF NEW.portal_password IS NOT NULL
+     AND NEW.portal_password != ''
+     AND (OLD IS NULL OR NEW.portal_password != OLD.portal_password)
+     AND left(NEW.portal_password, 4) != '$2a$'
+     AND left(NEW.portal_password, 4) != '$2b$' THEN
+    NEW.portal_password := crypt(NEW.portal_password, gen_salt('bf', 10));
+  END IF;
+  RETURN NEW;
+END; $$;
+
+CREATE TRIGGER clients_hash_password
+  BEFORE INSERT OR UPDATE OF portal_password ON public.clients
+  FOR EACH ROW EXECUTE FUNCTION public.tg_hash_portal_password();
+
 CREATE TRIGGER clients_updated_at
   BEFORE UPDATE ON public.clients
   FOR EACH ROW EXECUTE FUNCTION public.tg_set_updated_at();
+
 CREATE INDEX clients_slug_idx ON public.clients(slug);
 CREATE UNIQUE INDEX clients_client_code_unique ON public.clients(client_code);
 CREATE UNIQUE INDEX clients_portal_token_unique ON public.clients(portal_token) WHERE portal_token IS NOT NULL;
@@ -369,29 +416,29 @@ CREATE INDEX adsets_account_idx ON public.ad_sets(ad_account_id);
 
 -- ============ ADS ============
 CREATE TABLE public.ads (
-  id               UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  ad_set_id        UUID NOT NULL REFERENCES public.ad_sets ON DELETE CASCADE,
-  campaign_id      UUID NOT NULL REFERENCES public.campaigns ON DELETE CASCADE,
-  ad_account_id    UUID NOT NULL REFERENCES public.ad_accounts ON DELETE CASCADE,
-  fb_ad_id         TEXT NOT NULL UNIQUE,
-  name             TEXT NOT NULL,
-  status           public.entity_status,
-  effective_status public.entity_status,
+  id                 UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  ad_set_id          UUID NOT NULL REFERENCES public.ad_sets ON DELETE CASCADE,
+  campaign_id        UUID NOT NULL REFERENCES public.campaigns ON DELETE CASCADE,
+  ad_account_id      UUID NOT NULL REFERENCES public.ad_accounts ON DELETE CASCADE,
+  fb_ad_id           TEXT NOT NULL UNIQUE,
+  name               TEXT NOT NULL,
+  status             public.entity_status,
+  effective_status   public.entity_status,
   creative_thumbnail TEXT,
-  creative_id      TEXT,
-  preview_link     TEXT,
-  spend            NUMERIC(14,2) DEFAULT 0,
-  reach            BIGINT DEFAULT 0,
-  impressions      BIGINT DEFAULT 0,
-  clicks           BIGINT DEFAULT 0,
-  ctr              NUMERIC(8,4) DEFAULT 0,
-  cpc              NUMERIC(10,4) DEFAULT 0,
-  cpm              NUMERIC(10,4) DEFAULT 0,
-  results          BIGINT DEFAULT 0,
-  frequency        NUMERIC(8,4) DEFAULT 0,
-  last_sync_at     TIMESTAMPTZ,
-  created_at       TIMESTAMPTZ NOT NULL DEFAULT now(),
-  updated_at       TIMESTAMPTZ NOT NULL DEFAULT now()
+  creative_id        TEXT,
+  preview_link       TEXT,
+  spend              NUMERIC(14,2) DEFAULT 0,
+  reach              BIGINT DEFAULT 0,
+  impressions        BIGINT DEFAULT 0,
+  clicks             BIGINT DEFAULT 0,
+  ctr                NUMERIC(8,4) DEFAULT 0,
+  cpc                NUMERIC(10,4) DEFAULT 0,
+  cpm                NUMERIC(10,4) DEFAULT 0,
+  results            BIGINT DEFAULT 0,
+  frequency          NUMERIC(8,4) DEFAULT 0,
+  last_sync_at       TIMESTAMPTZ,
+  created_at         TIMESTAMPTZ NOT NULL DEFAULT now(),
+  updated_at         TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 GRANT SELECT, INSERT, UPDATE, DELETE ON public.ads TO authenticated;
 GRANT ALL ON public.ads TO service_role;
@@ -441,6 +488,19 @@ CREATE POLICY "insights_admin_modify"
 CREATE INDEX insights_account_date_idx ON public.insights_snapshots(ad_account_id, date_start DESC);
 CREATE INDEX insights_entity_idx ON public.insights_snapshots(level, entity_id);
 
+-- FIX: 90 দিনের পুরনো raw JSONB data রাত ২টায় auto-delete করবে।
+--      Table অনেক বড় হয়ে যাওয়া আটকাবে।
+SELECT cron.schedule(
+  'cleanup-old-insights-raw',
+  '0 2 * * *',
+  $$
+    UPDATE public.insights_snapshots
+    SET raw = NULL
+    WHERE captured_at < now() - interval '90 days'
+      AND raw IS NOT NULL;
+  $$
+);
+
 -- ============ ALERTS ============
 CREATE TABLE public.alerts (
   id            UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -463,7 +523,9 @@ CREATE POLICY "alerts_admin_modify"
   ON public.alerts FOR ALL TO authenticated
   USING (public.has_role(auth.uid(), 'admin'::public.app_role))
   WITH CHECK (public.has_role(auth.uid(), 'admin'::public.app_role));
-CREATE INDEX alerts_client_idx ON public.alerts(client_id, created_at DESC);
+CREATE INDEX alerts_client_idx   ON public.alerts(client_id, created_at DESC);
+-- FIX: Missing index যোগ করা হয়েছে — ad_account_id দিয়ে query fast হবে
+CREATE INDEX alerts_account_idx  ON public.alerts(ad_account_id, created_at DESC);
 
 -- ============ SYNC LOGS ============
 CREATE TABLE public.sync_logs (
@@ -486,6 +548,8 @@ CREATE POLICY "sync_logs_admin_modify"
   USING (public.has_role(auth.uid(), 'admin'::public.app_role))
   WITH CHECK (public.has_role(auth.uid(), 'admin'::public.app_role));
 CREATE INDEX sync_logs_account_idx ON public.sync_logs(ad_account_id, started_at DESC);
+-- FIX: Failed sync log দ্রুত খুঁজে পাওয়ার জন্য partial index
+CREATE INDEX sync_logs_failed_idx  ON public.sync_logs(status) WHERE status = 'failed';
 
 -- ============ META WEBHOOK EVENTS ============
 CREATE TABLE public.meta_webhook_events (
@@ -529,10 +593,13 @@ CREATE POLICY "client_campaigns_admin_modify"
 CREATE TRIGGER client_campaigns_updated_at
   BEFORE UPDATE ON public.client_campaigns
   FOR EACH ROW EXECUTE FUNCTION public.tg_set_updated_at();
-CREATE INDEX client_campaigns_client_idx ON public.client_campaigns(client_id);
+CREATE INDEX client_campaigns_client_idx   ON public.client_campaigns(client_id);
 CREATE INDEX client_campaigns_campaign_idx ON public.client_campaigns(campaign_id);
 
 -- ============ PUBLIC FUNCTIONS ============
+
+-- FIX: authenticated role কেও GRANT দেওয়া হয়েছে,
+--      নাহলে frontend থেকে settings দেখা যেত না।
 CREATE OR REPLACE FUNCTION public.get_settings_public()
 RETURNS TABLE(
   has_token               boolean,
@@ -576,6 +643,7 @@ LANGUAGE sql STABLE SECURITY DEFINER SET search_path TO 'public' AS $$
   FROM public.app_settings WHERE id = 1;
 $$;
 
+-- FIX: authenticated role কেও GRANT দেওয়া হয়েছে।
 CREATE OR REPLACE FUNCTION public.get_meta_connections_public()
 RETURNS TABLE(
   id                   uuid,
@@ -599,8 +667,8 @@ RETURNS TABLE(
 LANGUAGE sql STABLE SECURITY DEFINER SET search_path = public AS $$
   SELECT
     mc.id, mc.label, mc.fb_app_id, mc.fb_business_id,
-    (mc.fb_system_user_token IS NOT NULL AND length(mc.fb_system_user_token) > 0),
-    (mc.fb_app_secret IS NOT NULL AND length(mc.fb_app_secret) > 0),
+    (mc.fb_system_user_token_enc IS NOT NULL AND length(mc.fb_system_user_token_enc) > 0),
+    (mc.fb_app_secret_encrypted  IS NOT NULL AND length(mc.fb_app_secret_encrypted)  > 0),
     mc.token_status, mc.token_scopes, mc.token_missing_scopes,
     mc.token_user_name, mc.token_expires_at, mc.token_checked_at, mc.token_error,
     mc.is_active,
@@ -611,13 +679,24 @@ LANGUAGE sql STABLE SECURITY DEFINER SET search_path = public AS $$
   ORDER BY mc.created_at ASC;
 $$;
 
-CREATE OR REPLACE FUNCTION public.admin_clear_all_data(_user_id uuid)
+-- FIX: Confirmation parameter (_confirm) যোগ করা হয়েছে।
+--      'CONFIRM_DELETE_ALL' পাস না করলে function কাজ করবে না।
+--      এতে accidental data loss আটকাবে।
+CREATE OR REPLACE FUNCTION public.admin_clear_all_data(
+  _user_id uuid,
+  _confirm text DEFAULT ''
+)
 RETURNS jsonb
 LANGUAGE plpgsql SECURITY DEFINER SET search_path TO 'public' AS $$
 BEGIN
   IF NOT public.has_role(_user_id, 'admin'::public.app_role) THEN
     RAISE EXCEPTION 'Forbidden: admin role required';
   END IF;
+
+  IF _confirm != 'CONFIRM_DELETE_ALL' THEN
+    RAISE EXCEPTION 'Safety check failed: pass CONFIRM_DELETE_ALL as second argument to proceed';
+  END IF;
+
   DELETE FROM public.insights_snapshots;
   DELETE FROM public.alerts;
   DELETE FROM public.sync_logs;
@@ -628,24 +707,32 @@ BEGIN
   DELETE FROM public.campaigns;
   DELETE FROM public.ad_accounts;
   DELETE FROM public.clients;
-  RETURN jsonb_build_object('cleared_at', now(), 'cleared_by', _user_id);
+
+  RETURN jsonb_build_object(
+    'cleared_at', now(),
+    'cleared_by', _user_id
+  );
 END; $$;
 
 -- ============ FUNCTION PERMISSIONS ============
+-- FIX: get_settings_public ও get_meta_connections_public এ authenticated যোগ করা হয়েছে
 REVOKE ALL ON FUNCTION public.tg_set_updated_at()                FROM PUBLIC, anon, authenticated;
+REVOKE ALL ON FUNCTION public.tg_hash_portal_password()          FROM PUBLIC, anon, authenticated;
 REVOKE ALL ON FUNCTION public.handle_new_user()                   FROM PUBLIC, anon, authenticated;
 REVOKE ALL ON FUNCTION public.get_settings_public()               FROM PUBLIC, anon, authenticated;
 REVOKE ALL ON FUNCTION public.get_meta_connections_public()       FROM PUBLIC, anon, authenticated;
-REVOKE ALL ON FUNCTION public.admin_clear_all_data(uuid)          FROM PUBLIC, anon, authenticated;
+REVOKE ALL ON FUNCTION public.admin_clear_all_data(uuid, text)    FROM PUBLIC, anon, authenticated;
 REVOKE ALL ON FUNCTION public.has_role(uuid, public.app_role)     FROM PUBLIC, anon;
 REVOKE ALL ON FUNCTION public.is_admin(uuid)                      FROM PUBLIC, anon;
 REVOKE ALL ON FUNCTION public.generate_client_code()              FROM PUBLIC, anon;
 
 GRANT EXECUTE ON FUNCTION public.tg_set_updated_at()              TO service_role;
+GRANT EXECUTE ON FUNCTION public.tg_hash_portal_password()        TO service_role;
 GRANT EXECUTE ON FUNCTION public.handle_new_user()                TO service_role;
-GRANT EXECUTE ON FUNCTION public.get_settings_public()            TO service_role;
-GRANT EXECUTE ON FUNCTION public.get_meta_connections_public()    TO service_role;
-GRANT EXECUTE ON FUNCTION public.admin_clear_all_data(uuid)       TO service_role;
+-- FIX: authenticated যোগ করা হয়েছে — frontend থেকে call করা যাবে
+GRANT EXECUTE ON FUNCTION public.get_settings_public()            TO authenticated, service_role;
+GRANT EXECUTE ON FUNCTION public.get_meta_connections_public()    TO authenticated, service_role;
+GRANT EXECUTE ON FUNCTION public.admin_clear_all_data(uuid, text) TO service_role;
 GRANT EXECUTE ON FUNCTION public.has_role(uuid, public.app_role)  TO authenticated, service_role;
 GRANT EXECUTE ON FUNCTION public.is_admin(uuid)                   TO authenticated, service_role;
 GRANT EXECUTE ON FUNCTION public.generate_client_code()           TO authenticated, service_role;
@@ -682,3 +769,7 @@ SELECT id,
     ELSE 'member'::public.app_role
   END
 FROM ordered;
+
+-- ============================================================
+-- সব fix সম্পন্ন।
+-- ============================================================
