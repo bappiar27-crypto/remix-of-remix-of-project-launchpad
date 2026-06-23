@@ -178,7 +178,7 @@ const [pendingRange, setPendingRange] = useState<DateRange>("all");
   if ((data as any).forbidden) return <NotFoundCard reason="forbidden" />;
 
   const d: any = data;
-  const { client, accounts, campaigns, adSets, ads } = d;
+  const { client, accounts, campaigns, adSets } = d;
   const currency = (accounts as any[])[0]?.currency ?? "USD";
   const bdtRate = Number(client.bdt_rate) || 0;
   const bdt = (n: number) => bdtRate > 0 ? `৳${(n * bdtRate).toLocaleString(undefined, { maximumFractionDigits: 0 })}` : null;
