@@ -10,8 +10,8 @@ import {
   RefreshCw, Download, Printer, FileImage, FileText,
   ShieldAlert, AlertCircle, CheckCircle2, Clock as ClockIcon, ChevronDown,
   DollarSign, Wallet, CircleDollarSign, Eye, Users, MousePointerClick, Target,
-  TrendingUp, Percent, Activity, MessageCircle, Image as ImageIcon, ExternalLink,
-  Zap, BarChart3, Coins, Gauge, Repeat, Send, MousePointer, Sparkles,
+  TrendingUp, Percent, Activity, Image as ImageIcon,
+  BarChart3, Coins, Gauge, Repeat, MousePointer,
 } from "lucide-react";
 import { toCsv, downloadCsv } from "@/lib/csv";
 import { useI18n } from "@/lib/i18n-context";
@@ -195,18 +195,6 @@ const [pendingRange, setPendingRange] = useState<DateRange>("all");
   const num = (n: number) => (Number(n) || 0).toLocaleString();
 
   // Last 7 days = today + previous 6 calendar days, not "last 7 cached rows".
-  const last7Cutoff = new Date();
-  last7Cutoff.setDate(last7Cutoff.getDate() - 6);
-  const last7CutoffStr = last7Cutoff.toISOString().slice(0, 10);
-  const last7 = ((d.timeSeries ?? []) as any[]).filter((r) => r.date_start >= last7CutoffStr);
-  const last7DayCount = new Set(last7.map((r) => r.date_start)).size;
-  const last7Sum = last7.reduce((a, r) => ({
-    spend: a.spend + (Number(r.spend) || 0),
-    results: a.results + (Number(r.results) || 0),
-    impressions: a.impressions + (Number(r.impressions) || 0),
-    reach: a.reach + (Number(r.reach) || 0),
-    clicks: a.clicks + (Number(r.clicks) || 0),
-  }), { spend: 0, results: 0, impressions: 0, reach: 0, clicks: 0 });
 
   // Featured campaign = top by spend
   const featured = (campaigns as any[])[0];
@@ -256,9 +244,6 @@ const [pendingRange, setPendingRange] = useState<DateRange>("all");
   const adSetList: any[] = adSets ?? [];
   const adSetsCount = adSetList.length;
   const adList: any[] = ads ?? [];
-  const adsCount = adList.length;
-  const adSetById = new Map<string, any>(adSetList.map((s) => [s.id, s]));
-  const totalAdSpend = adList.reduce((a, r) => a + (Number(r.spend) || 0), 0);
   const totalAdSetSpend = adSetList.reduce((a, r) => a + (Number(r.spend) || 0), 0);
 
   return (
@@ -678,41 +663,6 @@ function FeatureStat({ label, value }: { label: string; value: string }) {
   );
 }
 
-function BigKpi({ label, value, hint, accent, ok = true }: { label: string; value: string; hint?: string; accent: "indigo" | "violet" | "emerald" | "rose"; ok?: boolean }) {
-  const ring = {
-    indigo:  "from-indigo-500/20 to-indigo-500/0",
-    violet:  "from-violet-500/20 to-violet-500/0",
-    emerald: "from-emerald-500/20 to-emerald-500/0",
-    rose:    "from-rose-500/20 to-rose-500/0",
-  }[accent];
-  const dot = {
-    indigo: "bg-indigo-500", violet: "bg-violet-500", emerald: "bg-emerald-500", rose: "bg-rose-500",
-  }[accent];
-  return (
-    <div className={`relative rounded-2xl bg-card border border-border p-5 shadow-sm overflow-hidden`}>
-      <div className={`absolute -top-16 -right-16 size-40 rounded-full bg-gradient-to-br ${ring} pointer-events-none`} />
-      <div className="flex items-center justify-between mb-2 relative">
-        <div className="text-[11px] uppercase tracking-wider text-muted-foreground font-semibold">{label}</div>
-        <span className={`size-2 rounded-full ${dot} ${ok ? "" : "animate-pulse"}`} />
-      </div>
-      <div className="text-2xl sm:text-3xl font-extrabold tabular-nums relative truncate">{value}</div>
-      {hint && <div className="text-[11px] text-muted-foreground mt-1 relative">{hint}</div>}
-    </div>
-  );
-}
-
-function MiniKpi({ label, value, dot }: { label: string; value: string; dot: "amber" | "emerald" | "rose" | "violet" }) {
-  const dotColor = { amber: "bg-amber-500", emerald: "bg-emerald-500", rose: "bg-rose-500", violet: "bg-violet-500" }[dot];
-  return (
-    <div className="rounded-2xl bg-card border border-border p-4 shadow-sm gv-lift">
-      <div className="flex items-center justify-between">
-        <div className="text-[11px] uppercase tracking-wider text-muted-foreground font-semibold">{label}</div>
-        <span className={`size-2 rounded-full ${dotColor}`} />
-      </div>
-      <div className="text-2xl font-extrabold mt-1.5 tabular-nums">{value}</div>
-    </div>
-  );
-}
 
 function BentoMetric({ label, value, dot, icon }: { label: string; value: string; dot: "amber" | "emerald" | "rose" | "violet"; icon?: ReactNode }) {
   const iconBg = { amber: "bg-amber-500/15 text-amber-500", emerald: "bg-emerald-500/15 text-emerald-500", rose: "bg-rose-500/15 text-rose-500", violet: "bg-violet-500/15 text-violet-500" }[dot];
@@ -759,17 +709,6 @@ function KpiHeroCard({ label, value, secondary, tag, tagTone, icon, accent }: {
 }
 
 
-function MiniStat({ label, value, icon }: { label: string; value: string; icon?: ReactNode }) {
-  return (
-    <div className="rounded-xl bg-surface/60 border border-border/60 px-3 py-2.5">
-      <div className="flex items-center justify-between text-muted-foreground">
-        <div className="text-[10px] uppercase tracking-wider font-semibold">{label}</div>
-        {icon}
-      </div>
-      <div className="text-lg font-bold mt-0.5 tabular-nums">{value}</div>
-    </div>
-  );
-}
 
 function SnapCell({ label, value, icon }: { label: string; value: string; icon?: ReactNode }) {
   return (
