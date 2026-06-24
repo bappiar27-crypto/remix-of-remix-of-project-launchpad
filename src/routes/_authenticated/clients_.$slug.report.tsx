@@ -171,16 +171,35 @@ function ClientReportPage() {
       : campaigns.length
         ? campaigns
         : accounts;
-  const totals = baseRows.reduce(
-    (acc: any, r: any) => ({
-      spend: acc.spend + (Number(r.spend ?? r.total_spend) || 0),
-      impressions: acc.impressions + (Number(r.impressions ?? r.total_impressions) || 0),
-      reach: acc.reach + (Number(r.reach ?? r.total_reach) || 0),
-      clicks: acc.clicks + (Number(r.clicks ?? r.total_clicks) || 0),
-      results: acc.results + (Number(r.results ?? r.total_results) || 0),
-    }),
-    { spend: 0, impressions: 0, reach: 0, clicks: 0, results: 0 },
-  );
+  const sumRows = (rows: any[]) =>
+    rows.reduce(
+      (acc: any, r: any) => ({
+        spend: acc.spend + (Number(r.spend ?? r.total_spend) || 0),
+        impressions: acc.impressions + (Number(r.impressions ?? r.total_impressions) || 0),
+        reach: acc.reach + (Number(r.reach ?? r.total_reach) || 0),
+        clicks: acc.clicks + (Number(r.clicks ?? r.total_clicks) || 0),
+        results: acc.results + (Number(r.results ?? r.total_results) || 0),
+      }),
+      { spend: 0, impressions: 0, reach: 0, clicks: 0, results: 0 },
+    );
+  // Fallback chain: baseRows → ads (already scoped) → ad_accounts totals.
+  // This prevents "$0 everything" when one level's insights save failed
+  // (e.g. campaign/adset/ad-level Meta call returned empty for new entities
+  // but account-level + per-ad rows were persisted).
+  let totals = sumRows(baseRows);
+  if (totals.spend === 0 && totals.impressions === 0 && totals.results === 0 && ads.length > 0) {
+    totals = sumRows(ads);
+  }
+  if (
+    totals.spend === 0 &&
+    totals.impressions === 0 &&
+    totals.results === 0 &&
+    assignedAdsetFbIds.length === 0
+  ) {
+    // Only fall through to ad_accounts when there is NO ad-set scope —
+    // otherwise we'd leak whole-account totals into a scoped report.
+    totals = sumRows(accounts);
+  }
 
   const deposit = Number(client.deposit_amount) || 0;
   const remaining = deposit - totals.spend;

@@ -250,16 +250,19 @@ function Dashboard() {
       { spend: 0, reach: 0, results: 0 },
     );
     // Fallback — when insights_snapshots are empty (fresh project, sync not
-    // run yet), derive spend straight from ad_accounts.total_spend so the
-    // KPI never reads $0 while there IS spend.
-    const acctSpend = acc.reduce(
-      (s: number, a: any) => s + (Number(a.total_spend) || 0),
+    // run yet, OR campaign/adset/ad-level insights save failed silently),
+    // derive totals straight from ad_accounts.total_* so the KPIs never
+    // read $0/0 while real spend, reach and results exist.
+    const acctSpend = acc.reduce((s: number, a: any) => s + (Number(a.total_spend) || 0), 0);
+    const acctReach = acc.reduce((s: number, a: any) => s + (Number(a.total_reach) || 0), 0);
+    const acctResults = acc.reduce(
+      (s: number, a: any) => s + (Number(a.total_results) || 0),
       0,
     );
     return {
       spend: rangeTotals.spend > 0 ? rangeTotals.spend : acctSpend,
-      reach: rangeTotals.reach,
-      results: rangeTotals.results,
+      reach: rangeTotals.reach > 0 ? rangeTotals.reach : acctReach,
+      results: rangeTotals.results > 0 ? rangeTotals.results : acctResults,
       activeCampaigns: acc.reduce((s, a: any) => s + (Number(a.active_campaigns) || 0), 0),
       accounts: acc.length,
     };
@@ -282,7 +285,22 @@ function Dashboard() {
         qc.invalidateQueries({ queryKey: ["dashboard-timeseries"] });
         qc.invalidateQueries({ queryKey: ["dashboard-logs"] });
         qc.invalidateQueries({ queryKey: ["dashboard-by-objective"] });
-        toast.success(`Synced ${res.count} accounts`);
+        // ✅ Surface per-account failures instead of always showing success.
+        // Without this, the dashboard reads "Synced N accounts" even when
+        // every per-account sync failed → KPIs stay at $0 forever.
+        const results = (res as any).results ?? [];
+        const failed = results.filter((r: any) => r && r.ok === false);
+        const okCount = results.length - failed.length;
+        if (failed.length > 0) {
+          const first = failed[0];
+          toast.error(
+            `${failed.length}/${results.length} account(s) failed to sync. ` +
+              `First error on "${first.account_name ?? first.id}": ${first.error ?? "unknown"}`,
+            { duration: 8000 },
+          );
+        } else {
+          toast.success(`Synced ${okCount} accounts`);
+        }
       }
       setAutoSyncErrors(0);
     } catch (e: any) {

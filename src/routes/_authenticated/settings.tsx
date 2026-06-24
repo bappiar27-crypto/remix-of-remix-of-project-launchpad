@@ -10,6 +10,7 @@ import {
   savePreferences,
   updateMyProfile,
   clearAllData,
+  clearSyncedData,
 } from "@/lib/fb/admin.functions";
 import { toast } from "sonner";
 import {
@@ -22,6 +23,7 @@ import {
   Loader2,
   Upload,
   Lock,
+  RefreshCw,
 } from "lucide-react";
 
 export const Route = createFileRoute("/_authenticated/settings")({
@@ -51,6 +53,7 @@ function SettingsPage() {
   const savePrefFn = useServerFn(savePreferences);
   const updateProfileFn = useServerFn(updateMyProfile);
   const clearFn = useServerFn(clearAllData);
+  const clearSyncedFn = useServerFn(clearSyncedData);
 
   const { data: settings } = useQuery({
     queryKey: ["settings"],
@@ -88,6 +91,7 @@ function SettingsPage() {
   // --- Danger ---
   const [confirmText, setConfirmText] = useState("");
   const [clearing, setClearing] = useState(false);
+  const [clearingSynced, setClearingSynced] = useState(false);
 
   useEffect(() => {
     if (settings) {
@@ -209,19 +213,35 @@ function SettingsPage() {
     }
   };
 
+  const onClearSynced = async () => {
+    if (!confirm("Clear all synced campaigns, ad sets, ads, insights & logs?\n\nFacebook connection and saved clients will be kept.")) {
+      return;
+    }
+    setClearingSynced(true);
+    try {
+      await clearSyncedFn({ data: undefined as any });
+      toast.success("Synced data cleared — run a fresh sync to repopulate");
+      qc.invalidateQueries();
+    } catch (e: any) {
+      toast.error(e?.message ?? "Clear failed");
+    } finally {
+      setClearingSynced(false);
+    }
+  };
+
   const onClearAll = async () => {
-    if (confirmText !== "CLEAR ALL DATA") {
-      toast.error('Type "CLEAR ALL DATA" exactly to confirm');
+    if (confirmText !== "FULL RESET") {
+      toast.error('Type "FULL RESET" exactly to confirm');
       return;
     }
     setClearing(true);
     try {
-      await clearFn({ data: { confirm: "CLEAR ALL DATA" } });
-      toast.success("All operational data cleared");
+      await clearFn({ data: { confirm: "FULL RESET" } });
+      toast.success("Full reset complete — reconnect Facebook to start over");
       setConfirmText("");
       qc.invalidateQueries();
     } catch (e: any) {
-      toast.error(e?.message ?? "Clear failed");
+      toast.error(e?.message ?? "Reset failed");
     } finally {
       setClearing(false);
     }
@@ -424,55 +444,77 @@ function SettingsPage() {
         <FooterButton onClick={onSavePref} loading={savingPref} label="Save Preferences" />
       </Section>
 
-      {/* Danger Zone */}
-      <div className="rounded-xl border border-destructive/40 bg-destructive/5 p-6">
-        <div className="flex items-center gap-2 text-destructive font-semibold mb-2">
-          <AlertTriangle className="size-5" /> Danger Zone — Clear All Data
+      {/* Danger Zone — Clear Synced Data (soft refresh) */}
+      <div className="rounded-xl border border-amber-500/40 bg-amber-500/5 p-6">
+        <div className="flex items-center gap-2 text-amber-600 dark:text-amber-400 font-semibold mb-2">
+          <RefreshCw className="size-5" /> Clear Synced Data
         </div>
         <p className="text-sm">
-          This will <strong>permanently delete EVERYTHING</strong> from this theme and rebuild it
-          fresh:
+          Wipes Facebook-synced numbers so the next sync rebuilds them from scratch. Safe to use any
+          time you suspect stale or wrong figures.
         </p>
         <ul className="mt-3 space-y-1 text-sm list-disc list-inside text-foreground/85">
-          <li>
-            All <strong>Clients</strong> &amp; client portals
-          </li>
-          <li>
-            All <strong>Ad Accounts</strong> (Meta + manual)
-          </li>
-          <li>
-            All <strong>Campaigns</strong>, <strong>Ad Sets</strong>, <strong>Ads</strong>
-          </li>
-          <li>
-            All <strong>Insights</strong>, <strong>Reports</strong>, <strong>Budget</strong> &amp;{" "}
-            <strong>Deposits</strong>
-          </li>
-          <li>
-            All <strong>Alerts</strong> &amp; activity log
-          </li>
-          <li>
-            All <strong>cached numbers</strong> shown on the Dashboard (Total Spend, Reach, Results,
-            etc.)
-          </li>
-          <li>
-            <strong>Meta access token</strong> &amp; account mapping
-          </li>
-          <li>
-            All <strong>locally saved preferences</strong>
-          </li>
+          <li>All <strong>Campaigns, Ad Sets, Ads</strong></li>
+          <li>All <strong>Insights snapshots</strong> & dashboard cached totals</li>
+          <li>All <strong>Alerts</strong>, <strong>Sync Logs</strong>, webhook events</li>
         </ul>
-        <p className="mt-4 text-xs text-muted-foreground">This action cannot be undone.</p>
+        <p className="mt-3 text-sm text-foreground/90">
+          <strong>Kept:</strong> Facebook connection (token, BM ID), saved Clients & client-campaign
+          assignments, Ad Account list, organization info & preferences.
+        </p>
+        <div className="mt-4">
+          <button
+            onClick={onClearSynced}
+            disabled={clearingSynced}
+            className="inline-flex items-center gap-2 rounded-lg bg-amber-500 text-white px-4 py-2.5 text-sm font-semibold hover:opacity-90 disabled:opacity-50"
+          >
+            {clearingSynced ? (
+              <Loader2 className="size-4 animate-spin" />
+            ) : (
+              <RefreshCw className="size-4" />
+            )}{" "}
+            Clear Synced Data
+          </button>
+        </div>
+      </div>
+
+      {/* Danger Zone — Full Reset */}
+      <div className="rounded-xl border border-destructive/40 bg-destructive/5 p-6">
+        <div className="flex items-center gap-2 text-destructive font-semibold mb-2">
+          <AlertTriangle className="size-5" /> Danger Zone — Full Reset
+        </div>
+        <p className="text-sm">
+          This will <strong>permanently delete EVERYTHING</strong> and require you to reconnect
+          Facebook from scratch:
+        </p>
+        <ul className="mt-3 space-y-1 text-sm list-disc list-inside text-foreground/85">
+          <li>All <strong>Clients</strong> & client portals</li>
+          <li>All <strong>Ad Accounts</strong> (Meta + manual)</li>
+          <li>All <strong>Campaigns</strong>, <strong>Ad Sets</strong>, <strong>Ads</strong></li>
+          <li>All <strong>Insights</strong>, <strong>Reports</strong>, cached totals</li>
+          <li>All <strong>Alerts</strong> & activity logs</li>
+          <li>
+            <strong>Facebook access token, Business Manager ID, App ID & App Secret</strong>
+          </li>
+          <li>All <strong>Meta connections</strong> & account mappings</li>
+        </ul>
+        <p className="mt-3 text-sm text-foreground/90">
+          <strong>Kept:</strong> your admin login, organization info, branding & preferences.
+        </p>
+        <p className="mt-4 text-xs text-muted-foreground">
+          This action cannot be undone. You will need to reconnect Facebook via OAuth afterwards.
+        </p>
 
         <div className="mt-4 flex flex-col sm:flex-row sm:items-center gap-3">
           <input
             value={confirmText}
             onChange={(e) => setConfirmText(e.target.value)}
-            placeholder='Type "CLEAR ALL DATA" to confirm'
+            placeholder='Type "FULL RESET" to confirm'
             className={inputCls + " sm:max-w-xs"}
           />
           <button
             onClick={onClearAll}
-            disabled={clearing || confirmText !== "CLEAR ALL DATA"}
+            disabled={clearing || confirmText !== "FULL RESET"}
             className="inline-flex items-center gap-2 rounded-lg bg-destructive text-destructive-foreground px-4 py-2.5 text-sm font-semibold hover:opacity-90 disabled:opacity-50"
           >
             {clearing ? (
@@ -480,9 +522,10 @@ function SettingsPage() {
             ) : (
               <AlertTriangle className="size-4" />
             )}{" "}
-            Clear All Data
+            Full Reset
           </button>
         </div>
+      </div>
       </div>
     </div>
   );

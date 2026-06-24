@@ -513,6 +513,20 @@ export const createClient = createServerFn({ method: "POST" })
   )
   .handler(async ({ data, context }) => {
     const supabaseAdmin = await requireAdmin(context.userId);
+    // ✅ Duplicate-name guard — block creating two clients with the same name
+    // (case-insensitive, trimmed). Without this the slug auto-suffixes to
+    // "-1", "-2" and the Clients list shows what looks like duplicate rows.
+    const trimmedName = data.name.trim();
+    const { data: dupe } = await supabaseAdmin
+      .from("clients")
+      .select("id,name")
+      .ilike("name", trimmedName)
+      .maybeSingle();
+    if (dupe) {
+      throw new Error(
+        `A client named "${dupe.name}" already exists. Please choose a different name.`,
+      );
+    }
     const baseSlug =
       (data.slug && data.slug.length > 0
         ? data.slug
@@ -1246,17 +1260,31 @@ export const updateMyProfile = createServerFn({ method: "POST" })
     return { ok: true };
   });
 
-// ✅ FIX: _confirm parameter যোগ করা হয়েছে
+// Soft refresh — clears synced data only (insights/campaigns/adsets/ads + logs).
+// Keeps: ad_accounts rows, clients, client_campaigns, meta_connections, app_settings.
+export const clearSyncedData = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ context }) => {
+    const supabaseAdmin = await requireAdmin(context.userId);
+    const { data, error } = await supabaseAdmin.rpc("admin_clear_synced_data", {
+      _user_id: context.userId,
+    });
+    if (error) throw new Error(error.message);
+    return { ok: true, result: data };
+  });
+
+// Full factory reset — wipes EVERYTHING including FB token, BM ID, App ID/Secret.
+// Requires typing "FULL RESET" in the UI; backend re-validates with CONFIRM_FULL_RESET.
 export const clearAllData = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((d: { confirm: string }) =>
-    z.object({ confirm: z.literal("CLEAR ALL DATA") }).parse(d),
+    z.object({ confirm: z.literal("FULL RESET") }).parse(d),
   )
   .handler(async ({ context }) => {
     const supabaseAdmin = await requireAdmin(context.userId);
-    const { data, error } = await supabaseAdmin.rpc("admin_clear_all_data", {
+    const { data, error } = await supabaseAdmin.rpc("admin_full_reset", {
       _user_id: context.userId,
-      _confirm: "CONFIRM_DELETE_ALL",
+      _confirm: "CONFIRM_FULL_RESET",
     });
     if (error) throw new Error(error.message);
     return { ok: true, result: data };

@@ -210,8 +210,9 @@ export function PortalDashboard({ slug, token }: { slug: string; token?: string 
     // the totals reflect ONLY the assigned ad sets — not every sibling ad set
     // under the parent campaign.
     if ((d.assignedCampaignIds ?? []).length) {
-      if (d.adsetScoped && (d.adSets ?? []).length) {
-        const sum = (d.adSets ?? []).reduce(
+      // Helper — sum scope-aware metrics from any row collection.
+      const sumScoped = (rows: any[]) =>
+        rows.reduce(
           (acc: any, s: any) => ({
             spend: acc.spend + (Number(s.spend) || 0),
             reach: Math.max(acc.reach, Number(s.reach) || 0),
@@ -222,19 +223,23 @@ export function PortalDashboard({ slug, token }: { slug: string; token?: string 
           }),
           { spend: 0, reach: 0, impressions: 0, clicks: 0, results: 0, active: 0 },
         );
-        return { ...sum, frequency: sum.reach > 0 ? sum.impressions / sum.reach : 0 };
+
+      // Pick the primary scope first (ad sets when ad-set-scoped, otherwise
+      // campaigns). If that comes back at $0 / 0 across the board (a known
+      // failure mode when Meta's insight save fell short for new entities),
+      // fall back to the per-ad rows which are already scope-narrowed by
+      // the server fn — guaranteeing the portal mirrors Ads Manager.
+      const primary =
+        d.adsetScoped && (d.adSets ?? []).length ? d.adSets : (d.campaigns ?? []);
+      let sum = sumScoped(primary);
+      if (
+        sum.spend === 0 &&
+        sum.impressions === 0 &&
+        sum.results === 0 &&
+        (d.ads ?? []).length > 0
+      ) {
+        sum = sumScoped(d.ads);
       }
-      const sum = (d.campaigns ?? []).reduce(
-        (acc: any, c: any) => ({
-          spend: acc.spend + (Number(c.spend) || 0),
-          reach: Math.max(acc.reach, Number(c.reach) || 0), // unique
-          impressions: acc.impressions + (Number(c.impressions) || 0),
-          clicks: acc.clicks + (Number(c.clicks) || 0),
-          results: acc.results + (Number(c.results) || 0),
-          active: acc.active + (c.effective_status === "ACTIVE" ? 1 : 0),
-        }),
-        { spend: 0, reach: 0, impressions: 0, clicks: 0, results: 0, active: 0 },
-      );
       return { ...sum, frequency: sum.reach > 0 ? sum.impressions / sum.reach : 0 };
     }
 
