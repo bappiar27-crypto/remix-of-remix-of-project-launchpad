@@ -711,7 +711,7 @@ export const syncOneAccount = createServerFn({ method: "POST" })
     return syncAdAccount(data.id);
   });
 
-// ============ Refresh all data — wipe cached metrics, force full re-sync ============
+// ============ Refresh all data ============
 export const refreshAllData = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }) => {
@@ -738,7 +738,7 @@ export const refreshAllData = createServerFn({ method: "POST" })
     return { cleared: true, ...res };
   });
 
-// ============ Re-test token + re-import — FIXED: multi-BM support ============
+// ============ Re-test token + re-import ============
 export const retestAndReimport = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }) => {
@@ -746,7 +746,6 @@ export const retestAndReimport = createServerFn({ method: "POST" })
     const { fb } = await import("./api.server");
     const { syncAdAccount } = await import("./sync.server");
 
-    // ✅ FIX: প্রথমে সব active multi-BM connections থেকে re-import করো
     const { data: connections } = await supabaseAdmin
       .from("meta_connections")
       .select("id,label,fb_system_user_token,fb_business_id")
@@ -809,7 +808,6 @@ export const retestAndReimport = createServerFn({ method: "POST" })
           .upsert(rows, { onConflict: "fb_account_id" })
           .select("id,fb_account_id,account_name");
 
-        // Ensure connection_id is set for existing rows too
         await supabaseAdmin
           .from("ad_accounts")
           .update({ connection_id: conn.id })
@@ -841,12 +839,9 @@ export const retestAndReimport = createServerFn({ method: "POST" })
             });
           }
         }
-      } catch (_e) {
-        // individual connection error — continue with next
-      }
+      } catch (_e) {}
     }
 
-    // Legacy single-BM re-import (as fallback / additional)
     const { data: s } = await supabaseAdmin
       .from("app_settings")
       .select("fb_system_user_token,fb_business_id")
@@ -858,11 +853,7 @@ export const retestAndReimport = createServerFn({ method: "POST" })
       if (connImported > 0) {
         return { ok: true, imported: connImported, syncResults: connSyncResults };
       }
-      return {
-        ok: false,
-        error: "No Facebook token configured (legacy or multi-BM).",
-        imported: 0,
-      };
+      return { ok: false, error: "No Facebook token configured (legacy or multi-BM).", imported: 0 };
     }
 
     const { checkTokenHealth } = await import("./permissions.server");
@@ -871,12 +862,7 @@ export const retestAndReimport = createServerFn({ method: "POST" })
       if (connImported > 0) {
         return { ok: true, imported: connImported, syncResults: connSyncResults, health };
       }
-      return {
-        ok: false,
-        error: health.error ?? `Token status: ${health.status}`,
-        health,
-        imported: 0,
-      };
+      return { ok: false, error: health.error ?? `Token status: ${health.status}`, health, imported: 0 };
     }
 
     const { accounts } = await fb.listAdAccountsDetailed(token, s?.fb_business_id);
@@ -969,14 +955,13 @@ export const retestAndReimport = createServerFn({ method: "POST" })
     };
   });
 
-// ============ Campaign-mapping verification — FIXED: per-account token ============
+// ============ Campaign-mapping verification ============
 export const verifyCampaignMapping = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }) => {
     const supabaseAdmin = await requireAdmin(context.userId);
     const { fb } = await import("./api.server");
 
-    // ✅ FIX: প্রতিটা account এর নিজস্ব connection token খোঁজো, না থাকলে legacy token ব্যবহার করো
     async function getTokenForAccountLocal(connectionId: string | null): Promise<string | null> {
       if (connectionId) {
         const { data: c } = await supabaseAdmin
@@ -1051,9 +1036,7 @@ export const verifyCampaignMapping = createServerFn({ method: "POST" })
           matched++;
           if ((dc.name ?? "") !== (lc.name ?? ""))
             diffs.push({ id, field: "name", fb: lc.name ?? null, db: dc.name ?? null });
-          if (
-            (dc.effective_status ?? dc.status ?? "") !== (lc.effective_status ?? lc.status ?? "")
-          ) {
+          if ((dc.effective_status ?? dc.status ?? "") !== (lc.effective_status ?? lc.status ?? "")) {
             diffs.push({
               id,
               field: "status",
@@ -1062,7 +1045,8 @@ export const verifyCampaignMapping = createServerFn({ method: "POST" })
             });
           }
         }
-        for (const [id, dc] of dbMap) if (!liveMap.has(id)) stale_in_db.push({ id, name: dc.name });
+        for (const [id, dc] of dbMap)
+          if (!liveMap.has(id)) stale_in_db.push({ id, name: dc.name });
         report.push({
           ad_account_id: a.id,
           fb_account_id: a.fb_account_id,
@@ -1127,24 +1111,12 @@ export const saveOrgInfo = createServerFn({ method: "POST" })
 export const saveBranding = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator(
-    (d: {
-      brand_logo_url?: string;
-      brand_primary_color?: string;
-      brand_secondary_color?: string;
-    }) =>
+    (d: { brand_logo_url?: string; brand_primary_color?: string; brand_secondary_color?: string }) =>
       z
         .object({
           brand_logo_url: z.string().trim().max(2000).optional(),
-          brand_primary_color: z
-            .string()
-            .trim()
-            .regex(/^#[0-9A-Fa-f]{6}$/)
-            .optional(),
-          brand_secondary_color: z
-            .string()
-            .trim()
-            .regex(/^#[0-9A-Fa-f]{6}$/)
-            .optional(),
+          brand_primary_color: z.string().trim().regex(/^#[0-9A-Fa-f]{6}$/).optional(),
+          brand_secondary_color: z.string().trim().regex(/^#[0-9A-Fa-f]{6}$/).optional(),
         })
         .parse(d),
   )
@@ -1156,10 +1128,8 @@ export const saveBranding = createServerFn({ method: "POST" })
       updated_by: context.userId,
     };
     if (data.brand_logo_url !== undefined) update.brand_logo_url = data.brand_logo_url || null;
-    if (data.brand_primary_color !== undefined)
-      update.brand_primary_color = data.brand_primary_color;
-    if (data.brand_secondary_color !== undefined)
-      update.brand_secondary_color = data.brand_secondary_color;
+    if (data.brand_primary_color !== undefined) update.brand_primary_color = data.brand_primary_color;
+    if (data.brand_secondary_color !== undefined) update.brand_secondary_color = data.brand_secondary_color;
     const { error } = await supabaseAdmin
       .from("app_settings")
       .upsert(update as any, { onConflict: "id" });
@@ -1170,12 +1140,7 @@ export const saveBranding = createServerFn({ method: "POST" })
 export const savePreferences = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator(
-    (d: {
-      pref_timezone?: string;
-      pref_currency?: string;
-      pref_language?: string;
-      pref_attribution_window?: string;
-    }) =>
+    (d: { pref_timezone?: string; pref_currency?: string; pref_language?: string; pref_attribution_window?: string }) =>
       z
         .object({
           pref_timezone: z.string().trim().max(100).optional(),
@@ -1188,12 +1153,7 @@ export const savePreferences = createServerFn({ method: "POST" })
   .handler(async ({ data, context }) => {
     const supabaseAdmin = await requireAdmin(context.userId);
     const { error } = await supabaseAdmin.from("app_settings").upsert(
-      {
-        id: 1,
-        ...data,
-        updated_at: new Date().toISOString(),
-        updated_by: context.userId,
-      } as any,
+      { id: 1, ...data, updated_at: new Date().toISOString(), updated_by: context.userId } as any,
       { onConflict: "id" },
     );
     if (error) throw new Error(error.message);
@@ -1229,6 +1189,7 @@ export const updateMyProfile = createServerFn({ method: "POST" })
     return { ok: true };
   });
 
+// ✅ FIX: _confirm parameter যোগ করা হয়েছে
 export const clearAllData = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((d: { confirm: string }) =>
@@ -1238,6 +1199,7 @@ export const clearAllData = createServerFn({ method: "POST" })
     const supabaseAdmin = await requireAdmin(context.userId);
     const { data, error } = await supabaseAdmin.rpc("admin_clear_all_data", {
       _user_id: context.userId,
+      _confirm: "CONFIRM_DELETE_ALL",
     });
     if (error) throw new Error(error.message);
     return { ok: true, result: data };
