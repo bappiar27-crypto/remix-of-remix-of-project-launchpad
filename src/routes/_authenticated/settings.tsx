@@ -1,4 +1,4 @@
-import { createFileRoute } from "@tanstack/react-router";
+﻿import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
@@ -27,7 +27,7 @@ import {
 } from "lucide-react";
 
 export const Route = createFileRoute("/_authenticated/settings")({
-  head: () => ({ meta: [{ title: "Settings — GrowVibe Ads Solution" }] }),
+  head: () => ({ meta: [{ title: "Settings â€” GrowVibe Ads Solution" }] }),
   component: SettingsPage,
 });
 
@@ -41,8 +41,8 @@ const TIMEZONES = [
   "America/Los_Angeles",
   "UTC",
 ];
-const CURRENCIES = ["USD ($)", "EUR (€)", "GBP (£)", "BDT (৳)", "INR (₹)", "AED (د.إ)"];
-const LANGUAGES = ["English", "বাংলা", "हिन्दी", "العربية", "Español"];
+const CURRENCIES = ["USD ($)", "EUR (â‚¬)", "GBP (Â£)", "BDT (à§³)", "INR (â‚¹)", "AED (Ø¯.Ø¥)"];
+const LANGUAGES = ["English", "à¦¬à¦¾à¦‚à¦²à¦¾", "à¤¹à¤¿à¤¨à¥à¤¦à¥€", "Ø§Ù„Ø¹Ø±Ø¨ÙŠØ©", "EspaÃ±ol"];
 const ATTRIBUTION = ["1 Day Click", "7 Day Click", "28 Day Click", "1 Day View", "7 Day View"];
 
 function SettingsPage() {
@@ -220,7 +220,7 @@ function SettingsPage() {
     setClearingSynced(true);
     try {
       await clearSyncedFn({ data: undefined as any });
-      toast.success("Synced data cleared — run a fresh sync to repopulate");
+      toast.success("Synced data cleared â€” run a fresh sync to repopulate");
       qc.invalidateQueries();
     } catch (e: any) {
       toast.error(e?.message ?? "Clear failed");
@@ -237,7 +237,7 @@ function SettingsPage() {
     setClearing(true);
     try {
       await clearFn({ data: { confirm: "FULL RESET" } });
-      toast.success("Full reset complete — reconnect Facebook to start over");
+      toast.success("Full reset complete â€” reconnect Facebook to start over");
       setConfirmText("");
       qc.invalidateQueries();
     } catch (e: any) {
@@ -366,7 +366,7 @@ function SettingsPage() {
             <input
               value={logoUrl}
               onChange={(e) => setLogoUrl(e.target.value)}
-              placeholder="https://… (paste a logo URL)"
+              placeholder="https://â€¦ (paste a logo URL)"
               className={inputCls + " flex-1"}
             />
             <button
@@ -444,7 +444,7 @@ function SettingsPage() {
         <FooterButton onClick={onSavePref} loading={savingPref} label="Save Preferences" />
       </Section>
 
-      {/* Danger Zone — Clear Synced Data (soft refresh) */}
+      {/* Danger Zone â€” Clear Synced Data (soft refresh) */}
       <div className="rounded-xl border border-amber-500/40 bg-amber-500/5 p-6">
         <div className="flex items-center gap-2 text-amber-600 dark:text-amber-400 font-semibold mb-2">
           <RefreshCw className="size-5" /> Clear Synced Data
@@ -478,10 +478,10 @@ function SettingsPage() {
         </div>
       </div>
 
-      {/* Danger Zone — Full Reset */}
+      {/* Danger Zone â€” Full Reset */}
       <div className="rounded-xl border border-destructive/40 bg-destructive/5 p-6">
         <div className="flex items-center gap-2 text-destructive font-semibold mb-2">
-          <AlertTriangle className="size-5" /> Danger Zone — Full Reset
+          <AlertTriangle className="size-5" /> Danger Zone â€” Full Reset
         </div>
         <p className="text-sm">
           This will <strong>permanently delete EVERYTHING</strong> and require you to reconnect
@@ -525,7 +525,6 @@ function SettingsPage() {
             Full Reset
           </button>
         </div>
-      </div>
       </div>
     </div>
   );
