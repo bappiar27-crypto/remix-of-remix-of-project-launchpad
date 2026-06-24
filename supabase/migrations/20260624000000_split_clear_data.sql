@@ -1,7 +1,7 @@
 -- ============================================================================
---  Split "Clear All Data" into two operations:
---    1) admin_clear_synced_data  -> soft refresh (keeps connection + clients)
---    2) admin_full_reset         -> factory reset (wipes EVERYTHING incl. FB creds)
+--  FIX: Supabase-এর pg-safeupdate extension DELETE/UPDATE without WHERE block
+--  করে। প্রত্যেক statement এ WHERE true যোগ করা হলো — logic same, কিন্তু
+--  safeupdate guard pass করবে।
 -- ============================================================================
 
 -- ---------- 1. Soft refresh: synced data only ----------
@@ -13,20 +13,21 @@ BEGIN
     RAISE EXCEPTION 'Forbidden: admin role required';
   END IF;
 
-  DELETE FROM public.insights_snapshots;
-  DELETE FROM public.alerts;
-  DELETE FROM public.sync_logs;
-  DELETE FROM public.meta_webhook_events;
-  DELETE FROM public.ads;
-  DELETE FROM public.ad_sets;
-  DELETE FROM public.campaigns;
+  DELETE FROM public.insights_snapshots   WHERE true;
+  DELETE FROM public.alerts               WHERE true;
+  DELETE FROM public.sync_logs            WHERE true;
+  DELETE FROM public.meta_webhook_events  WHERE true;
+  DELETE FROM public.ads                  WHERE true;
+  DELETE FROM public.ad_sets              WHERE true;
+  DELETE FROM public.campaigns            WHERE true;
 
   -- Reset cached totals on ad_accounts so dashboard KPIs zero out
   UPDATE public.ad_accounts SET
-    total_spend   = 0,
-    total_reach   = 0,
-    total_results = 0,
-    last_synced_at = NULL;
+    total_spend    = 0,
+    total_reach    = 0,
+    total_results  = 0,
+    last_synced_at = NULL
+  WHERE true;
 
   RETURN jsonb_build_object(
     'mode',       'synced_only',
@@ -55,19 +56,19 @@ BEGIN
   END IF;
 
   -- Operational data (FK-safe order)
-  DELETE FROM public.insights_snapshots;
-  DELETE FROM public.alerts;
-  DELETE FROM public.sync_logs;
-  DELETE FROM public.meta_webhook_events;
-  DELETE FROM public.client_campaigns;
-  DELETE FROM public.ads;
-  DELETE FROM public.ad_sets;
-  DELETE FROM public.campaigns;
-  DELETE FROM public.ad_accounts;
-  DELETE FROM public.clients;
+  DELETE FROM public.insights_snapshots   WHERE true;
+  DELETE FROM public.alerts               WHERE true;
+  DELETE FROM public.sync_logs            WHERE true;
+  DELETE FROM public.meta_webhook_events  WHERE true;
+  DELETE FROM public.client_campaigns     WHERE true;
+  DELETE FROM public.ads                  WHERE true;
+  DELETE FROM public.ad_sets              WHERE true;
+  DELETE FROM public.campaigns            WHERE true;
+  DELETE FROM public.ad_accounts          WHERE true;
+  DELETE FROM public.clients              WHERE true;
 
   -- Wipe stored FB connections (token, BM ID, App ID/Secret)
-  DELETE FROM public.meta_connections;
+  DELETE FROM public.meta_connections     WHERE true;
 
   -- Reset FB credential fields on the singleton app_settings row,
   -- but keep org info / branding / preferences intact.

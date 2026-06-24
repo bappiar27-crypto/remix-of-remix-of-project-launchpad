@@ -13,6 +13,7 @@ import { Route as AuthRouteImport } from './routes/auth'
 import { Route as AuthenticatedRouteRouteImport } from './routes/_authenticated/route'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as PortalSlugRouteImport } from './routes/portal.$slug'
+import { Route as ClientCodeRouteImport } from './routes/client.$code'
 import { Route as AuthenticatedSyncActivityRouteImport } from './routes/_authenticated/sync-activity'
 import { Route as AuthenticatedSettingsRouteImport } from './routes/_authenticated/settings'
 import { Route as AuthenticatedReportsRouteImport } from './routes/_authenticated/reports'
@@ -47,6 +48,11 @@ const IndexRoute = IndexRouteImport.update({
 const PortalSlugRoute = PortalSlugRouteImport.update({
   id: '/portal/$slug',
   path: '/portal/$slug',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ClientCodeRoute = ClientCodeRouteImport.update({
+  id: '/client/$code',
+  path: '/client/$code',
   getParentRoute: () => rootRouteImport,
 } as any)
 const AuthenticatedSyncActivityRoute =
@@ -150,6 +156,7 @@ export interface FileRoutesByFullPath {
   '/reports': typeof AuthenticatedReportsRoute
   '/settings': typeof AuthenticatedSettingsRoute
   '/sync-activity': typeof AuthenticatedSyncActivityRoute
+  '/client/$code': typeof ClientCodeRoute
   '/portal/$slug': typeof PortalSlugRoute
   '/clients/new': typeof AuthenticatedClientsNewRoute
   '/clients/$slug/report': typeof AuthenticatedClientsSlugReportRoute
@@ -171,6 +178,7 @@ export interface FileRoutesByTo {
   '/reports': typeof AuthenticatedReportsRoute
   '/settings': typeof AuthenticatedSettingsRoute
   '/sync-activity': typeof AuthenticatedSyncActivityRoute
+  '/client/$code': typeof ClientCodeRoute
   '/portal/$slug': typeof PortalSlugRoute
   '/clients/new': typeof AuthenticatedClientsNewRoute
   '/clients/$slug/report': typeof AuthenticatedClientsSlugReportRoute
@@ -194,6 +202,7 @@ export interface FileRoutesById {
   '/_authenticated/reports': typeof AuthenticatedReportsRoute
   '/_authenticated/settings': typeof AuthenticatedSettingsRoute
   '/_authenticated/sync-activity': typeof AuthenticatedSyncActivityRoute
+  '/client/$code': typeof ClientCodeRoute
   '/portal/$slug': typeof PortalSlugRoute
   '/_authenticated/clients_/new': typeof AuthenticatedClientsNewRoute
   '/_authenticated/clients_/$slug/report': typeof AuthenticatedClientsSlugReportRoute
@@ -217,6 +226,7 @@ export interface FileRouteTypes {
     | '/reports'
     | '/settings'
     | '/sync-activity'
+    | '/client/$code'
     | '/portal/$slug'
     | '/clients/new'
     | '/clients/$slug/report'
@@ -238,6 +248,7 @@ export interface FileRouteTypes {
     | '/reports'
     | '/settings'
     | '/sync-activity'
+    | '/client/$code'
     | '/portal/$slug'
     | '/clients/new'
     | '/clients/$slug/report'
@@ -260,6 +271,7 @@ export interface FileRouteTypes {
     | '/_authenticated/reports'
     | '/_authenticated/settings'
     | '/_authenticated/sync-activity'
+    | '/client/$code'
     | '/portal/$slug'
     | '/_authenticated/clients_/new'
     | '/_authenticated/clients_/$slug/report'
@@ -271,6 +283,7 @@ export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   AuthenticatedRouteRoute: typeof AuthenticatedRouteRouteWithChildren
   AuthRoute: typeof AuthRoute
+  ClientCodeRoute: typeof ClientCodeRoute
   PortalSlugRoute: typeof PortalSlugRoute
   ApiPublicHooksMetaWebhookRoute: typeof ApiPublicHooksMetaWebhookRoute
   ApiPublicHooksSyncAllRoute: typeof ApiPublicHooksSyncAllRoute
@@ -304,6 +317,13 @@ declare module '@tanstack/react-router' {
       path: '/portal/$slug'
       fullPath: '/portal/$slug'
       preLoaderRoute: typeof PortalSlugRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/client/$code': {
+      id: '/client/$code'
+      path: '/client/$code'
+      fullPath: '/client/$code'
+      preLoaderRoute: typeof ClientCodeRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/_authenticated/sync-activity': {
@@ -463,6 +483,7 @@ const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AuthenticatedRouteRoute: AuthenticatedRouteRouteWithChildren,
   AuthRoute: AuthRoute,
+  ClientCodeRoute: ClientCodeRoute,
   PortalSlugRoute: PortalSlugRoute,
   ApiPublicHooksMetaWebhookRoute: ApiPublicHooksMetaWebhookRoute,
   ApiPublicHooksSyncAllRoute: ApiPublicHooksSyncAllRoute,
