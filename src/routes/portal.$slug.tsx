@@ -205,8 +205,25 @@ export function PortalDashboard({ slug, token }: { slug: string; token?: string 
       };
     }
 
-    // "All Time" with assigned campaigns → lifetime per-campaign sum (matches Ads Manager exactly)
+    // "All Time" with assigned campaigns → lifetime sum.
+    // When ad-set scope is active, sum from the (already narrowed) ad sets so
+    // the totals reflect ONLY the assigned ad sets — not every sibling ad set
+    // under the parent campaign.
     if ((d.assignedCampaignIds ?? []).length) {
+      if (d.adsetScoped && (d.adSets ?? []).length) {
+        const sum = (d.adSets ?? []).reduce(
+          (acc: any, s: any) => ({
+            spend: acc.spend + (Number(s.spend) || 0),
+            reach: Math.max(acc.reach, Number(s.reach) || 0),
+            impressions: acc.impressions + (Number(s.impressions) || 0),
+            clicks: acc.clicks + (Number(s.clicks) || 0),
+            results: acc.results + (Number(s.results) || 0),
+            active: acc.active + (s.effective_status === "ACTIVE" ? 1 : 0),
+          }),
+          { spend: 0, reach: 0, impressions: 0, clicks: 0, results: 0, active: 0 },
+        );
+        return { ...sum, frequency: sum.reach > 0 ? sum.impressions / sum.reach : 0 };
+      }
       const sum = (d.campaigns ?? []).reduce(
         (acc: any, c: any) => ({
           spend: acc.spend + (Number(c.spend) || 0),

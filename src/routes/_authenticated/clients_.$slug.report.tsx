@@ -64,6 +64,15 @@ function ClientReportPage() {
       if (assignedError) throw assignedError;
       const assignedIds = (assigned ?? []).map((r: any) => r.campaign_id);
 
+      // Ad-set level scope — when present, only these ad sets and their ads count.
+      const { data: assignedAdsets } = await supabase
+        .from("client_ad_sets")
+        .select("fb_adset_id")
+        .eq("client_id", client.id);
+      const assignedAdsetFbIds = (assignedAdsets ?? [])
+        .map((r: any) => r.fb_adset_id)
+        .filter(Boolean);
+
       let campaigns: any[] = [];
       if (assignedIds.length) {
         const { data, error } = await supabase.from("campaigns").select("*").in("id", assignedIds);
@@ -78,13 +87,42 @@ function ClientReportPage() {
         campaigns = data ?? [];
       }
 
+      // Scope ad sets — only the ones the admin picked, when applicable.
+      let adSets: any[] = [];
       const campIds = campaigns.map((c) => c.id);
-      let ads: any[] = [];
       if (campIds.length) {
+        let q = supabase
+          .from("ad_sets")
+          .select("id,fb_adset_id,campaign_id,spend,impressions,reach,clicks,results")
+          .in("campaign_id", campIds);
+        if (assignedAdsetFbIds.length > 0) {
+          q = q.in("fb_adset_id", assignedAdsetFbIds);
+        }
+        const { data, error } = await q;
+        if (error) throw error;
+        adSets = data ?? [];
+      }
+      const scopedAdSetUuids = adSets.map((s) => s.id);
+
+      let ads: any[] = [];
+      if (assignedAdsetFbIds.length > 0) {
+        if (scopedAdSetUuids.length > 0) {
+          const { data, error } = await supabase
+            .from("ads")
+            .select(
+              "id,name,fb_ad_id,effective_status,campaign_id,ad_account_id,ad_set_id,spend,impressions,reach,clicks,results",
+            )
+            .in("ad_set_id", scopedAdSetUuids)
+            .order("spend", { ascending: false })
+            .limit(200);
+          if (error) throw error;
+          ads = data ?? [];
+        }
+      } else if (campIds.length) {
         const { data, error } = await supabase
           .from("ads")
           .select(
-            "id,name,fb_ad_id,effective_status,campaign_id,ad_account_id,spend,impressions,reach,clicks,results",
+            "id,name,fb_ad_id,effective_status,campaign_id,ad_account_id,ad_set_id,spend,impressions,reach,clicks,results",
           )
           .in("campaign_id", campIds)
           .order("spend", { ascending: false })
@@ -94,7 +132,7 @@ function ClientReportPage() {
       }
 
       const acctById = new Map((accounts ?? []).map((a: any) => [a.id, a]));
-      return { client, accounts: accounts ?? [], campaigns, ads, acctById };
+      return { client, accounts: accounts ?? [], campaigns, adSets, ads, acctById, assignedAdsetFbIds };
     },
   });
 
@@ -119,13 +157,20 @@ function ClientReportPage() {
     );
   }
 
-  const { client, accounts, campaigns, ads, acctById } = data;
+  const { client, accounts, campaigns, adSets, ads, acctById, assignedAdsetFbIds } = data;
   const clientIdShort = client.client_code ?? (client.slug ?? "").slice(0, 8).toUpperCase();
-  const portalUrl = `${typeof window !== "undefined" ? window.location.origin : ""}/portal/${client.slug}${client.portal_token ? `?token=${client.portal_token}` : ""}`;
+  // Modern share URL — /client/<UNIQUE_ID>. Old /portal/<slug> still works for legacy links.
+  const portalUrl = `${typeof window !== "undefined" ? window.location.origin : ""}/client/${clientIdShort}${client.portal_token ? `?token=${client.portal_token}` : ""}`;
   const qrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=200x200&margin=8&bgcolor=0f172a&color=10b981&data=${encodeURIComponent(portalUrl)}`;
 
-  // Aggregate from assigned campaigns (preferred) or accounts fallback
-  const baseRows = campaigns.length ? campaigns : accounts;
+  // Aggregate totals — prefer ad-set rows when ad-set scope is active (matches
+  // exactly what the portal shows). Otherwise fall back to campaigns, then accounts.
+  const baseRows =
+    assignedAdsetFbIds.length > 0 && adSets.length
+      ? adSets
+      : campaigns.length
+        ? campaigns
+        : accounts;
   const totals = baseRows.reduce(
     (acc: any, r: any) => ({
       spend: acc.spend + (Number(r.spend ?? r.total_spend) || 0),

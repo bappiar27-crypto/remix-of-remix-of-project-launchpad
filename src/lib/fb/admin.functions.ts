@@ -507,6 +507,7 @@ export const createClient = createServerFn({ method: "POST" })
         brand_color: z.string().max(20).optional(),
         ad_account_ids: z.array(z.string()).optional(),
         campaign_ids: z.array(z.string().uuid()).optional(),
+        ad_set_fb_ids: z.array(z.string().min(1)).optional(),
       })
       .parse(d),
   )
@@ -593,6 +594,19 @@ export const createClient = createServerFn({ method: "POST" })
         .from("client_campaigns")
         .upsert(rows, { onConflict: "client_id,campaign_id" });
       if (campaignError) throw new Error(campaignError.message);
+    }
+    // Ad-set level scoping — store the exact FB ad-set IDs the admin picked.
+    // The portal uses these to filter ad sets + ads so we do NOT leak every
+    // ad set under the parent campaign.
+    if (data.ad_set_fb_ids && data.ad_set_fb_ids.length > 0 && row) {
+      const adsetRows = data.ad_set_fb_ids.map((fbId: string) => ({
+        client_id: row.id,
+        fb_adset_id: fbId,
+      }));
+      const { error: adsetError } = await supabaseAdmin
+        .from("client_ad_sets")
+        .upsert(adsetRows, { onConflict: "client_id,fb_adset_id" });
+      if (adsetError) throw new Error(adsetError.message);
     }
     return row;
   });

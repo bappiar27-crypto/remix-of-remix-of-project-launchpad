@@ -77,6 +77,16 @@ export const getClientPortalData = createServerFn({ method: "POST" })
       .eq("client_id", client.id);
     const assignedCampaignIds = (assigned ?? []).map((r) => r.campaign_id);
 
+    // Ad-set level scope (preferred): if the admin assigned specific ad sets,
+    // we only return THOSE ad sets and their ads. Falls back to campaign scope.
+    const { data: assignedAdsetRows } = await supabaseAdmin
+      .from("client_ad_sets")
+      .select("fb_adset_id")
+      .eq("client_id", client.id);
+    const assignedAdsetFbIds = (assignedAdsetRows ?? [])
+      .map((r: any) => r.fb_adset_id)
+      .filter(Boolean);
+
     let accounts: any[] = [];
     let campaigns: any[] = [];
     let adSets: any[] = [];
@@ -96,25 +106,44 @@ export const getClientPortalData = createServerFn({ method: "POST" })
       campaigns = assignedCampaigns ?? [];
       assignedFbCampaignIds = campaigns.map((c: any) => c.fb_campaign_id).filter(Boolean);
 
-      const { data: assignedAdSets } = await supabaseAdmin
+      let adSetsQuery = supabaseAdmin
         .from("ad_sets")
         .select(
           "id,fb_adset_id,campaign_id,ad_account_id,name,effective_status,daily_budget,lifetime_budget,optimization_goal,start_time,end_time,spend,reach,impressions,clicks,ctr,cpc,cpm,results,frequency",
         )
-        .in("campaign_id", assignedCampaignIds)
+        .in("campaign_id", assignedCampaignIds);
+      if (assignedAdsetFbIds.length > 0) {
+        adSetsQuery = adSetsQuery.in("fb_adset_id", assignedAdsetFbIds);
+      }
+      const { data: assignedAdSets } = await adSetsQuery
         .order("spend", { ascending: false })
         .limit(200);
       adSets = assignedAdSets ?? [];
 
-      const { data: assignedAds } = await supabaseAdmin
+      // Use the internal UUIDs of the (already-scoped) ad sets to narrow ads,
+      // so we never leak ads from sibling ad sets under the same campaign.
+      const scopedAdSetUuids = adSets.map((s: any) => s.id).filter(Boolean);
+      let adsQuery = supabaseAdmin
         .from("ads")
         .select(
           "id,ad_account_id,campaign_id,ad_set_id,name,fb_ad_id,effective_status,creative_thumbnail,preview_link,spend,reach,impressions,clicks,ctr,results",
-        )
-        .in("campaign_id", assignedCampaignIds)
-        .order("spend", { ascending: false })
-        .limit(200);
-      ads = assignedAds ?? [];
+        );
+      if (assignedAdsetFbIds.length > 0) {
+        if (scopedAdSetUuids.length === 0) {
+          ads = [];
+          adsQuery = null as any;
+        } else {
+          adsQuery = adsQuery.in("ad_set_id", scopedAdSetUuids);
+        }
+      } else {
+        adsQuery = adsQuery.in("campaign_id", assignedCampaignIds);
+      }
+      if (adsQuery) {
+        const { data: assignedAds } = await adsQuery
+          .order("spend", { ascending: false })
+          .limit(200);
+        ads = assignedAds ?? [];
+      }
 
       const campaignAccountIds = Array.from(
         new Set(campaigns.map((c) => c.ad_account_id).filter(Boolean)),
@@ -324,6 +353,8 @@ export const getClientPortalData = createServerFn({ method: "POST" })
       adSets,
       ads,
       assignedCampaignIds,
+      assignedAdsetFbIds,
+      adsetScoped: assignedAdsetFbIds.length > 0,
       timeSeries: liveTimeSeries && liveTimeSeries.length > 0 ? liveTimeSeries : dbTimeSeries,
       alerts: alerts ?? [],
     };
@@ -353,6 +384,15 @@ export const getClientInsightsForExport = createServerFn({ method: "POST" })
       .eq("client_id", client.id);
     const assignedIds = (assigned ?? []).map((a) => a.campaign_id);
 
+    // Ad-set level scope — if present, narrow exports too.
+    const { data: assignedAdsetRows } = await supabaseAdmin
+      .from("client_ad_sets")
+      .select("fb_adset_id")
+      .eq("client_id", client.id);
+    const assignedAdsetFbIds = (assignedAdsetRows ?? [])
+      .map((r: any) => r.fb_adset_id)
+      .filter(Boolean);
+
     const { data: accounts } = await supabaseAdmin
       .from("ad_accounts")
       .select("id,fb_account_id,account_name,currency")
@@ -375,8 +415,26 @@ export const getClientInsightsForExport = createServerFn({ method: "POST" })
     if (assignedIds.length) {
       if (data.level === "campaign") {
         query = query.in("id", assignedIds);
-      } else {
+      } else if (data.level === "adset") {
         query = query.in("campaign_id", assignedIds);
+        if (assignedAdsetFbIds.length > 0) {
+          query = query.in("fb_adset_id", assignedAdsetFbIds);
+        }
+      } else {
+        // ad level — narrow to scoped ad sets when available
+        if (assignedAdsetFbIds.length > 0) {
+          const { data: scopedSets } = await supabaseAdmin
+            .from("ad_sets")
+            .select("id")
+            .in("fb_adset_id", assignedAdsetFbIds);
+          const setUuids = (scopedSets ?? []).map((r: any) => r.id);
+          if (setUuids.length === 0) {
+            return { forbidden: false as const, rows: [] as any[] };
+          }
+          query = query.in("ad_set_id", setUuids);
+        } else {
+          query = query.in("campaign_id", assignedIds);
+        }
       }
     } else if (ids.length) {
       query = query.in("ad_account_id", ids);

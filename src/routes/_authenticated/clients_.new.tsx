@@ -225,6 +225,9 @@ function AddPartnerPage() {
                 .map((a) => a.internal_campaign_id as string),
             ),
           ),
+          // Ad-set level scoping — portal will show ONLY these ad sets and their ads,
+          // not every ad set under the parent campaign.
+          ad_set_fb_ids: Array.from(selectedAdsets),
         },
       });
       toast.success("Partner saved");

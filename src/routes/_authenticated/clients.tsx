@@ -43,7 +43,31 @@ function ClientsPage() {
         .from("clients")
         .select("*, ad_accounts(id,total_spend,currency)")
         .order("created_at", { ascending: false });
-      return data ?? [];
+      const rows = data ?? [];
+      // Fallback — if ad_accounts.total_spend is 0/stale, derive spend from
+      // the campaigns table so the list never shows $0 when there IS spend.
+      const clientIds = rows.map((c: any) => c.id);
+      const acctIds = rows.flatMap((c: any) => (c.ad_accounts ?? []).map((a: any) => a.id));
+      const spendByClient = new Map<string, number>();
+      if (acctIds.length) {
+        const { data: camps } = await supabase
+          .from("campaigns")
+          .select("ad_account_id, spend, ad_accounts!inner(client_id)")
+          .in("ad_account_id", acctIds);
+        for (const c of camps ?? []) {
+          const cid = (c as any).ad_accounts?.client_id;
+          if (!cid) continue;
+          spendByClient.set(cid, (spendByClient.get(cid) ?? 0) + (Number((c as any).spend) || 0));
+        }
+      }
+      return rows.map((c: any) => {
+        const acctTotal = (c.ad_accounts ?? []).reduce(
+          (s: number, a: any) => s + (Number(a.total_spend) || 0),
+          0,
+        );
+        const fallback = spendByClient.get(c.id) ?? 0;
+        return { ...c, _derived_spend_usd: acctTotal > 0 ? acctTotal : fallback };
+      });
     },
   });
 
@@ -154,7 +178,7 @@ function ClientsPage() {
                 </tr>
               ) : (
                 filtered.map((c: any) => {
-                  const totalSpentUsd = (c.ad_accounts ?? []).reduce(
+                  const totalSpentUsd = c._derived_spend_usd ?? (c.ad_accounts ?? []).reduce(
                     (s: number, a: any) => s + (Number(a.total_spend) || 0),
                     0,
                   );

@@ -249,8 +249,15 @@ function Dashboard() {
       }),
       { spend: 0, reach: 0, results: 0 },
     );
+    // Fallback — when insights_snapshots are empty (fresh project, sync not
+    // run yet), derive spend straight from ad_accounts.total_spend so the
+    // KPI never reads $0 while there IS spend.
+    const acctSpend = acc.reduce(
+      (s: number, a: any) => s + (Number(a.total_spend) || 0),
+      0,
+    );
     return {
-      spend: rangeTotals.spend,
+      spend: rangeTotals.spend > 0 ? rangeTotals.spend : acctSpend,
       reach: rangeTotals.reach,
       results: rangeTotals.results,
       activeCampaigns: acc.reduce((s, a: any) => s + (Number(a.active_campaigns) || 0), 0),
