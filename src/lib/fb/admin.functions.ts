@@ -513,13 +513,25 @@ export const createClient = createServerFn({ method: "POST" })
   )
   .handler(async ({ data, context }) => {
     const supabaseAdmin = await requireAdmin(context.userId);
-    const slug =
+    const baseSlug =
       (data.slug && data.slug.length > 0
         ? data.slug
         : data.name
             .toLowerCase()
             .replace(/[^a-z0-9]+/g, "-")
             .replace(/(^-|-$)/g, "")) || Math.random().toString(36).slice(2, 10);
+    let slug = baseSlug;
+    let attempt = 0;
+    while (true) {
+      const { data: existing } = await supabaseAdmin
+        .from("clients")
+        .select("id")
+        .eq("slug", slug)
+        .maybeSingle();
+      if (!existing) break;
+      attempt += 1;
+      slug = `${baseSlug}-${attempt}`;
+    }
     const { error, data: row } = await context.supabase
       .from("clients")
       .insert({
@@ -867,7 +879,11 @@ export const retestAndReimport = createServerFn({ method: "POST" })
       if (connImported > 0) {
         return { ok: true, imported: connImported, syncResults: connSyncResults };
       }
-      return { ok: false, error: "No Facebook token configured (legacy or multi-BM).", imported: 0 };
+      return {
+        ok: false,
+        error: "No Facebook token configured (legacy or multi-BM).",
+        imported: 0,
+      };
     }
 
     const { checkTokenHealth } = await import("./permissions.server");
@@ -876,7 +892,12 @@ export const retestAndReimport = createServerFn({ method: "POST" })
       if (connImported > 0) {
         return { ok: true, imported: connImported, syncResults: connSyncResults, health };
       }
-      return { ok: false, error: health.error ?? `Token status: ${health.status}`, health, imported: 0 };
+      return {
+        ok: false,
+        error: health.error ?? `Token status: ${health.status}`,
+        health,
+        imported: 0,
+      };
     }
 
     const { accounts } = await fb.listAdAccountsDetailed(token, s?.fb_business_id);
@@ -1050,7 +1071,9 @@ export const verifyCampaignMapping = createServerFn({ method: "POST" })
           matched++;
           if ((dc.name ?? "") !== (lc.name ?? ""))
             diffs.push({ id, field: "name", fb: lc.name ?? null, db: dc.name ?? null });
-          if ((dc.effective_status ?? dc.status ?? "") !== (lc.effective_status ?? lc.status ?? "")) {
+          if (
+            (dc.effective_status ?? dc.status ?? "") !== (lc.effective_status ?? lc.status ?? "")
+          ) {
             diffs.push({
               id,
               field: "status",
@@ -1059,8 +1082,7 @@ export const verifyCampaignMapping = createServerFn({ method: "POST" })
             });
           }
         }
-        for (const [id, dc] of dbMap)
-          if (!liveMap.has(id)) stale_in_db.push({ id, name: dc.name });
+        for (const [id, dc] of dbMap) if (!liveMap.has(id)) stale_in_db.push({ id, name: dc.name });
         report.push({
           ad_account_id: a.id,
           fb_account_id: a.fb_account_id,
@@ -1125,12 +1147,24 @@ export const saveOrgInfo = createServerFn({ method: "POST" })
 export const saveBranding = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator(
-    (d: { brand_logo_url?: string; brand_primary_color?: string; brand_secondary_color?: string }) =>
+    (d: {
+      brand_logo_url?: string;
+      brand_primary_color?: string;
+      brand_secondary_color?: string;
+    }) =>
       z
         .object({
           brand_logo_url: z.string().trim().max(2000).optional(),
-          brand_primary_color: z.string().trim().regex(/^#[0-9A-Fa-f]{6}$/).optional(),
-          brand_secondary_color: z.string().trim().regex(/^#[0-9A-Fa-f]{6}$/).optional(),
+          brand_primary_color: z
+            .string()
+            .trim()
+            .regex(/^#[0-9A-Fa-f]{6}$/)
+            .optional(),
+          brand_secondary_color: z
+            .string()
+            .trim()
+            .regex(/^#[0-9A-Fa-f]{6}$/)
+            .optional(),
         })
         .parse(d),
   )
@@ -1142,8 +1176,10 @@ export const saveBranding = createServerFn({ method: "POST" })
       updated_by: context.userId,
     };
     if (data.brand_logo_url !== undefined) update.brand_logo_url = data.brand_logo_url || null;
-    if (data.brand_primary_color !== undefined) update.brand_primary_color = data.brand_primary_color;
-    if (data.brand_secondary_color !== undefined) update.brand_secondary_color = data.brand_secondary_color;
+    if (data.brand_primary_color !== undefined)
+      update.brand_primary_color = data.brand_primary_color;
+    if (data.brand_secondary_color !== undefined)
+      update.brand_secondary_color = data.brand_secondary_color;
     const { error } = await supabaseAdmin
       .from("app_settings")
       .upsert(update as any, { onConflict: "id" });
@@ -1154,7 +1190,12 @@ export const saveBranding = createServerFn({ method: "POST" })
 export const savePreferences = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator(
-    (d: { pref_timezone?: string; pref_currency?: string; pref_language?: string; pref_attribution_window?: string }) =>
+    (d: {
+      pref_timezone?: string;
+      pref_currency?: string;
+      pref_language?: string;
+      pref_attribution_window?: string;
+    }) =>
       z
         .object({
           pref_timezone: z.string().trim().max(100).optional(),
@@ -1166,10 +1207,12 @@ export const savePreferences = createServerFn({ method: "POST" })
   )
   .handler(async ({ data, context }) => {
     const supabaseAdmin = await requireAdmin(context.userId);
-    const { error } = await supabaseAdmin.from("app_settings").upsert(
-      { id: 1, ...data, updated_at: new Date().toISOString(), updated_by: context.userId } as any,
-      { onConflict: "id" },
-    );
+    const { error } = await supabaseAdmin
+      .from("app_settings")
+      .upsert(
+        { id: 1, ...data, updated_at: new Date().toISOString(), updated_by: context.userId } as any,
+        { onConflict: "id" },
+      );
     if (error) throw new Error(error.message);
     return { ok: true };
   });
