@@ -209,7 +209,7 @@ export function PortalDashboard({ slug, token }: { slug: string; token?: string 
     // When ad-set scope is active, sum from the (already narrowed) ad sets so
     // the totals reflect ONLY the assigned ad sets — not every sibling ad set
     // under the parent campaign.
-    if ((d.assignedCampaignIds ?? []).length) {
+    if ((d.assignedCampaignIds ?? []).length || (d.assignedAdsetFbIds ?? []).length) {
       // Helper — sum scope-aware metrics from any row collection.
       const sumScoped = (rows: any[]) =>
         rows.reduce(

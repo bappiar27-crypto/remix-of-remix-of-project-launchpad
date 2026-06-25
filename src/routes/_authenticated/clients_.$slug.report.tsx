@@ -65,7 +65,7 @@ function ClientReportPage() {
       const assignedIds = (assigned ?? []).map((r: any) => r.campaign_id);
 
       // Ad-set level scope — when present, only these ad sets and their ads count.
-      const { data: assignedAdsets } = await supabase
+      const { data: assignedAdsets } = await (supabase as any)
         .from("client_ad_sets")
         .select("fb_adset_id")
         .eq("client_id", client.id);

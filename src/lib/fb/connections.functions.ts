@@ -93,7 +93,7 @@ export const upsertConnection = createServerFn({ method: "POST" })
     if (data.is_active !== undefined) row.is_active = data.is_active;
 
     if (data.id) {
-      const { error } = await supabaseAdmin
+      const { error } = await (supabaseAdmin as any)
         .from("meta_connections")
         .update(row as any)
         .eq("id", data.id);
@@ -101,7 +101,7 @@ export const upsertConnection = createServerFn({ method: "POST" })
       return { id: data.id };
     } else {
       row.created_by = context.userId;
-      const { data: inserted, error } = await supabaseAdmin
+      const { data: inserted, error } = await (supabaseAdmin as any)
         .from("meta_connections")
         .insert(row as any)
         .select("id")
@@ -122,7 +122,7 @@ export const removeConnection = createServerFn({ method: "POST" })
       .from("ad_accounts")
       .update({ connection_id: null })
       .eq("connection_id", data.id);
-    const { error } = await supabaseAdmin.from("meta_connections").delete().eq("id", data.id);
+    const { error } = await (supabaseAdmin as any).from("meta_connections").delete().eq("id", data.id);
     if (error) throw new Error(error.message);
     return { ok: true };
   });
@@ -133,7 +133,7 @@ export const testConnection = createServerFn({ method: "POST" })
   .inputValidator((d: { id: string }) => z.object({ id: z.string().uuid() }).parse(d))
   .handler(async ({ data, context }) => {
     const supabaseAdmin = await requireAdminClient(context.userId);
-    const { data: c } = await supabaseAdmin
+    const { data: c } = await (supabaseAdmin as any)
       .from("meta_connections")
       .select("fb_system_user_token,fb_business_id")
       .eq("id", data.id)
@@ -186,7 +186,7 @@ export const importVisibleForConnection = createServerFn({ method: "POST" })
   .inputValidator((d: { id: string }) => z.object({ id: z.string().uuid() }).parse(d))
   .handler(async ({ data, context }) => {
     const supabaseAdmin = await requireAdminClient(context.userId);
-    const { data: c } = await supabaseAdmin
+    const { data: c } = await (supabaseAdmin as any)
       .from("meta_connections")
       .select("id,label,fb_system_user_token,fb_business_id")
       .eq("id", data.id)
@@ -294,7 +294,7 @@ export const matchCheckConnection = createServerFn({ method: "POST" })
     const supabaseAdmin = await requireAdminClient(context.userId);
     const datePreset = data.date_preset ?? "last_7d";
 
-    const { data: c } = await supabaseAdmin
+    const { data: c } = await (supabaseAdmin as any)
       .from("meta_connections")
       .select("fb_system_user_token,label")
       .eq("id", data.id)

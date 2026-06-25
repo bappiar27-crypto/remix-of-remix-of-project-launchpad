@@ -46,7 +46,7 @@ function ClientsPage() {
       const rows = data ?? [];
       // Fallback — if ad_accounts.total_spend is 0/stale, derive spend from
       // the campaigns table so the list never shows $0 when there IS spend.
-      const clientIds = rows.map((c: any) => c.id);
+      void rows.map((c: any) => c.id);
       const acctIds = rows.flatMap((c: any) => (c.ad_accounts ?? []).map((a: any) => a.id));
       const spendByClient = new Map<string, number>();
       if (acctIds.length) {

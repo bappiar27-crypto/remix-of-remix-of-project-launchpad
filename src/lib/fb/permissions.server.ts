@@ -130,7 +130,7 @@ export async function checkTokenHealth(): Promise<TokenHealth> {
 
 // Per-connection variant — updates meta_connections.token_* columns.
 export async function checkConnectionHealth(connectionId: string): Promise<TokenHealth> {
-  const { data: c } = await supabaseAdmin
+  const { data: c } = await (supabaseAdmin as any)
     .from("meta_connections")
     .select("fb_system_user_token")
     .eq("id", connectionId)
@@ -139,7 +139,7 @@ export async function checkConnectionHealth(connectionId: string): Promise<Token
   const checkedAt = new Date().toISOString();
 
   if (!token) {
-    await supabaseAdmin
+    await (supabaseAdmin as any)
       .from("meta_connections")
       .update({
         token_status: "missing",
@@ -179,7 +179,7 @@ export async function checkConnectionHealth(connectionId: string): Promise<Token
       : expiringSoon
         ? "expiring"
         : "ok";
-    await supabaseAdmin
+    await (supabaseAdmin as any)
       .from("meta_connections")
       .update({
         token_status: status,
@@ -201,7 +201,7 @@ export async function checkConnectionHealth(connectionId: string): Promise<Token
     };
   } catch (e: any) {
     const msg = e?.message ?? "Token validation failed";
-    await supabaseAdmin
+    await (supabaseAdmin as any)
       .from("meta_connections")
       .update({
         token_status: "invalid",

@@ -10,7 +10,6 @@ export default defineConfig({
     tsconfigPaths(),
     tanstackStart({
       server: {
-        preset: "cloudflare-worker",
         entry: "src/server.ts",
       },
     }),

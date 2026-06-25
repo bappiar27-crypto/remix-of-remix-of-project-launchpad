@@ -19,7 +19,7 @@ async function getTokenForAccount(accountId: string): Promise<string> {
     .eq("id", accountId)
     .maybeSingle();
   if (acc?.connection_id) {
-    const { data: c } = await supabaseAdmin
+    const { data: c } = await (supabaseAdmin as any)
       .from("meta_connections")
       .select("fb_system_user_token")
       .eq("id", acc.connection_id)
@@ -516,7 +516,7 @@ export async function syncAllAccounts() {
 
   // ✅ FIX: Legacy token invalid হলেও multi-BM connections থাকলে sync চালিয়ে যাও
   if (!health.ok && (health.status === "invalid" || health.status === "missing")) {
-    const { count: connCount } = await supabaseAdmin
+    const { count: connCount } = await (supabaseAdmin as any)
       .from("meta_connections")
       .select("id", { count: "exact", head: true })
       .eq("is_active", true);

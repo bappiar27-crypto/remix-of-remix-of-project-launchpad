@@ -629,7 +629,7 @@ export const createClient = createServerFn({ method: "POST" })
         client_id: row.id,
         fb_adset_id: fbId,
       }));
-      const { error: adsetError } = await supabaseAdmin
+      const { error: adsetError } = await (supabaseAdmin as any)
         .from("client_ad_sets")
         .upsert(adsetRows, { onConflict: "client_id,fb_adset_id" });
       if (adsetError) throw new Error(adsetError.message);
@@ -786,7 +786,7 @@ export const retestAndReimport = createServerFn({ method: "POST" })
     const { fb } = await import("./api.server");
     const { syncAdAccount } = await import("./sync.server");
 
-    const { data: connections } = await supabaseAdmin
+    const { data: connections } = await (supabaseAdmin as any)
       .from("meta_connections")
       .select("id,label,fb_system_user_token,fb_business_id")
       .eq("is_active", true);
@@ -1013,7 +1013,7 @@ export const verifyCampaignMapping = createServerFn({ method: "POST" })
 
     async function getTokenForAccountLocal(connectionId: string | null): Promise<string | null> {
       if (connectionId) {
-        const { data: c } = await supabaseAdmin
+        const { data: c } = await (supabaseAdmin as any)
           .from("meta_connections")
           .select("fb_system_user_token")
           .eq("id", connectionId)
@@ -1266,7 +1266,7 @@ export const clearSyncedData = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }) => {
     const supabaseAdmin = await requireAdmin(context.userId);
-    const { data, error } = await supabaseAdmin.rpc("admin_clear_synced_data", {
+    const { data, error } = await (supabaseAdmin as any).rpc("admin_clear_synced_data", {
       _user_id: context.userId,
     });
     if (error) throw new Error(error.message);
@@ -1282,7 +1282,7 @@ export const clearAllData = createServerFn({ method: "POST" })
   )
   .handler(async ({ context }) => {
     const supabaseAdmin = await requireAdmin(context.userId);
-    const { data, error } = await supabaseAdmin.rpc("admin_full_reset", {
+    const { data, error } = await (supabaseAdmin as any).rpc("admin_full_reset", {
       _user_id: context.userId,
       _confirm: "CONFIRM_FULL_RESET",
     });

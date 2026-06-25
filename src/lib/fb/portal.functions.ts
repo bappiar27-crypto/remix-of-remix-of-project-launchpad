@@ -46,7 +46,7 @@ async function getTokenForPortalAccount(
   legacyToken?: string | null,
 ) {
   if (account.connection_id) {
-    const { data: c } = await supabaseAdmin
+    const { data: c } = await (supabaseAdmin as any)
       .from("meta_connections")
       .select("fb_system_user_token")
       .eq("id", account.connection_id)
@@ -79,7 +79,7 @@ export const getClientPortalData = createServerFn({ method: "POST" })
 
     // Ad-set level scope (preferred): if the admin assigned specific ad sets,
     // we only return THOSE ad sets and their ads. Falls back to campaign scope.
-    const { data: assignedAdsetRows } = await supabaseAdmin
+    const { data: assignedAdsetRows } = await (supabaseAdmin as any)
       .from("client_ad_sets")
       .select("fb_adset_id")
       .eq("client_id", client.id);
@@ -168,7 +168,59 @@ export const getClientPortalData = createServerFn({ method: "POST" })
         .eq("is_active", true);
       accounts = clientAccounts ?? [];
       const accountIds = accounts.map((a) => a.id);
-      if (accountIds.length) {
+
+      // Ad-set-only scope: client has assigned ad sets but no client_campaigns.
+      // Narrow ad sets (and ads) to ONLY those FB ad-set IDs, and derive
+      // campaigns from those ad sets so the portal shows only the selected
+      // ad set's data — never the whole account.
+      if (assignedAdsetFbIds.length > 0) {
+        const { data: scopedAdSets } = await supabaseAdmin
+          .from("ad_sets")
+          .select(
+            "id,fb_adset_id,campaign_id,ad_account_id,name,effective_status,daily_budget,lifetime_budget,optimization_goal,start_time,end_time,spend,reach,impressions,clicks,ctr,cpc,cpm,results,frequency",
+          )
+          .in("fb_adset_id", assignedAdsetFbIds)
+          .order("spend", { ascending: false })
+          .limit(200);
+        adSets = scopedAdSets ?? [];
+
+        const scopedAdSetUuids = adSets.map((s: any) => s.id).filter(Boolean);
+        const scopedCampaignIds = Array.from(
+          new Set(adSets.map((s: any) => s.campaign_id).filter(Boolean)),
+        );
+        const scopedAccountIds = Array.from(
+          new Set(adSets.map((s: any) => s.ad_account_id).filter(Boolean)),
+        );
+
+        if (scopedCampaignIds.length) {
+          const { data: scopedCampaigns } = await supabaseAdmin
+            .from("campaigns")
+            .select(
+              "id,fb_campaign_id,ad_account_id,name,objective,effective_status,daily_budget,lifetime_budget,spend,reach,impressions,clicks,ctr,cpc,cpm,frequency,results",
+            )
+            .in("id", scopedCampaignIds);
+          campaigns = scopedCampaigns ?? [];
+          assignedFbCampaignIds = campaigns.map((c: any) => c.fb_campaign_id).filter(Boolean);
+        }
+
+        if (scopedAdSetUuids.length) {
+          const { data: scopedAds } = await supabaseAdmin
+            .from("ads")
+            .select(
+              "id,ad_account_id,campaign_id,ad_set_id,name,fb_ad_id,effective_status,creative_thumbnail,preview_link,spend,reach,impressions,clicks,ctr,results",
+            )
+            .in("ad_set_id", scopedAdSetUuids)
+            .order("spend", { ascending: false })
+            .limit(200);
+          ads = scopedAds ?? [];
+        }
+
+        // Narrow `accounts` to only those that actually host the scoped ad sets,
+        // so KPIs / time-series stay within the assigned ad set's account.
+        if (scopedAccountIds.length) {
+          accounts = accounts.filter((a: any) => scopedAccountIds.includes(a.id));
+        }
+      } else if (accountIds.length) {
         const [{ data: accountCampaigns }, { data: accountAdSets }, { data: accountAds }] =
           await Promise.all([
             supabaseAdmin
@@ -385,7 +437,7 @@ export const getClientInsightsForExport = createServerFn({ method: "POST" })
     const assignedIds = (assigned ?? []).map((a) => a.campaign_id);
 
     // Ad-set level scope — if present, narrow exports too.
-    const { data: assignedAdsetRows } = await supabaseAdmin
+    const { data: assignedAdsetRows } = await (supabaseAdmin as any)
       .from("client_ad_sets")
       .select("fb_adset_id")
       .eq("client_id", client.id);
