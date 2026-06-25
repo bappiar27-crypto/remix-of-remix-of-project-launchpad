@@ -1,6 +1,8 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
+import { useServerFn } from "@tanstack/react-start";
 import { supabase } from "@/integrations/supabase/client";
+import { getClientPortalData } from "@/lib/fb/portal.functions";
 import { toast } from "sonner";
 import {
   ArrowLeft,
@@ -35,6 +37,7 @@ function fmtInt(n: number) {
 
 function ClientReportPage() {
   const { slug } = Route.useParams();
+  const fetchPortal = useServerFn(getClientPortalData);
 
   const { data, isLoading } = useQuery({
     queryKey: ["client-report", slug],
@@ -50,91 +53,32 @@ function ClientReportPage() {
       if (clientError) throw clientError;
       if (!client) return null;
 
-      const { data: accounts, error: accountsError } = await supabase
-        .from("ad_accounts")
-        .select("*")
-        .eq("client_id", client.id);
-      if (accountsError) throw accountsError;
-      const acctIds = (accounts ?? []).map((a: any) => a.id);
-
-      const { data: assigned, error: assignedError } = await supabase
-        .from("client_campaigns")
-        .select("campaign_id")
-        .eq("client_id", client.id);
-      if (assignedError) throw assignedError;
-      const assignedIds = (assigned ?? []).map((r: any) => r.campaign_id);
-
-      // Ad-set level scope — when present, only these ad sets and their ads count.
-      const { data: assignedAdsets } = await (supabase as any)
-        .from("client_ad_sets")
-        .select("fb_adset_id")
-        .eq("client_id", client.id);
-      const assignedAdsetFbIds = (assignedAdsets ?? [])
-        .map((r: any) => r.fb_adset_id)
-        .filter(Boolean);
-
-      let campaigns: any[] = [];
-      if (assignedIds.length) {
-        const { data, error } = await supabase.from("campaigns").select("*").in("id", assignedIds);
-        if (error) throw error;
-        campaigns = data ?? [];
-      } else if (acctIds.length) {
-        const { data, error } = await supabase
-          .from("campaigns")
-          .select("*")
-          .in("ad_account_id", acctIds);
-        if (error) throw error;
-        campaigns = data ?? [];
+      // Pull the SAME scope-aware aggregates the public portal uses, so admin
+      // report KPIs and tables match the portal/Ads Manager 1:1.
+      const portal: any = await fetchPortal({ data: { slug } });
+      if (portal?.notFound || portal?.forbidden) {
+        return {
+          client,
+          accounts: [],
+          campaigns: [],
+          adSets: [],
+          ads: [],
+          acctById: new Map(),
+          assignedAdsetFbIds: [],
+        };
       }
 
-      // Scope ad sets — only the ones the admin picked, when applicable.
-      let adSets: any[] = [];
-      const campIds = campaigns.map((c) => c.id);
-      if (campIds.length) {
-        let q = supabase
-          .from("ad_sets")
-          .select("id,fb_adset_id,campaign_id,spend,impressions,reach,clicks,results")
-          .in("campaign_id", campIds);
-        if (assignedAdsetFbIds.length > 0) {
-          q = q.in("fb_adset_id", assignedAdsetFbIds);
-        }
-        const { data, error } = await q;
-        if (error) throw error;
-        adSets = data ?? [];
-      }
-      const scopedAdSetUuids = adSets.map((s) => s.id);
-
-      let ads: any[] = [];
-      if (assignedAdsetFbIds.length > 0) {
-        if (scopedAdSetUuids.length > 0) {
-          const { data, error } = await supabase
-            .from("ads")
-            .select(
-              "id,name,fb_ad_id,effective_status,campaign_id,ad_account_id,ad_set_id,spend,impressions,reach,clicks,results",
-            )
-            .in("ad_set_id", scopedAdSetUuids)
-            .order("spend", { ascending: false })
-            .limit(200);
-          if (error) throw error;
-          ads = data ?? [];
-        }
-      } else if (campIds.length) {
-        const { data, error } = await supabase
-          .from("ads")
-          .select(
-            "id,name,fb_ad_id,effective_status,campaign_id,ad_account_id,ad_set_id,spend,impressions,reach,clicks,results",
-          )
-          .in("campaign_id", campIds)
-          .order("spend", { ascending: false })
-          .limit(200);
-        if (error) throw error;
-        ads = data ?? [];
-      }
+      const accounts = portal.accounts ?? [];
+      const campaigns = portal.campaigns ?? [];
+      const adSets = portal.adSets ?? [];
+      const ads = portal.ads ?? [];
+      const assignedAdsetFbIds: string[] = portal.assignedAdsetFbIds ?? [];
 
       const acctById = new Map((accounts ?? []).map((a: any) => [a.id, a]));
-      return { client, accounts: accounts ?? [], campaigns, adSets, ads, acctById, assignedAdsetFbIds };
+      return { client, accounts, campaigns, adSets, ads, acctById, assignedAdsetFbIds };
     },
   });
+
 
   if (isLoading) {
     return (
@@ -367,64 +311,89 @@ function ClientReportPage() {
         </aside>
 
         <div className="glass-card overflow-hidden">
-          <div className="px-4 py-3 border-b border-border/40 text-xs text-emerald-400">
-            ✓ Loaded {ads.length} assigned ad{ads.length !== 1 ? "s" : ""}
-          </div>
-          <div className="px-4 py-3 border-b border-border/40 flex items-center justify-between">
-            <div className="font-semibold">Assigned Ads</div>
-            <div className="text-xs text-muted-foreground">{ads.length} ADS</div>
-          </div>
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="text-[11px] uppercase tracking-wider text-muted-foreground bg-surface/40">
-                  <th className="text-left px-4 py-2.5">Ad Name</th>
-                  <th className="text-left px-4 py-2.5">Ad ID</th>
-                  <th className="text-left px-4 py-2.5">Ad Account</th>
-                  <th className="text-left px-4 py-2.5">Status</th>
-                  <th className="text-right px-4 py-2.5">Spend</th>
-                  <th className="text-right px-4 py-2.5">Results</th>
-                </tr>
-              </thead>
-              <tbody>
-                {ads.length === 0 ? (
-                  <tr>
-                    <td colSpan={6} className="text-center py-12 text-muted-foreground text-sm">
-                      No assigned ads.
-                    </td>
-                  </tr>
-                ) : (
-                  ads.map((a: any) => {
-                    const acct: any = acctById.get(a.ad_account_id);
-                    return (
-                      <tr key={a.id} className="border-t border-border/40 hover:bg-surface/40">
-                        <td className="px-4 py-3 max-w-[260px]">
-                          <div className="font-medium truncate">{a.name}</div>
-                        </td>
-                        <td className="px-4 py-3">
-                          <code className="text-xs font-mono text-muted-foreground">
-                            {a.fb_ad_id}
-                          </code>
-                        </td>
-                        <td className="px-4 py-3 text-muted-foreground">
-                          {acct?.account_name ?? acct?.fb_account_id ?? "—"}
-                        </td>
-                        <td className="px-4 py-3">
-                          <span className="text-[10px] font-semibold uppercase rounded-full px-2 py-0.5 bg-surface text-muted-foreground">
-                            {a.effective_status ?? "—"}
-                          </span>
-                        </td>
-                        <td className="px-4 py-3 text-right font-medium">{fmtUSD(a.spend)}</td>
-                        <td className="px-4 py-3 text-right text-primary font-medium">
-                          {fmtInt(a.results)}
-                        </td>
+          {(() => {
+            // When the admin assigned specific ad sets, the report MUST show
+            // only those ad sets — never sibling ads. When no ad sets were
+            // assigned (campaign-level scope), fall back to the assigned ads.
+            const showAdSets = assignedAdsetFbIds.length > 0;
+            const rows: any[] = showAdSets ? adSets : ads;
+            const label = showAdSets ? "Ad Set" : "Ad";
+            return (
+              <>
+                <div className="px-4 py-3 border-b border-border/40 text-xs text-emerald-400">
+                  ✓ Loaded {rows.length} assigned {label.toLowerCase()}
+                  {rows.length !== 1 ? "s" : ""}
+                </div>
+                <div className="px-4 py-3 border-b border-border/40 flex items-center justify-between">
+                  <div className="font-semibold">Assigned {label}s</div>
+                  <div className="text-xs text-muted-foreground">
+                    {rows.length} {label.toUpperCase()}
+                    {rows.length !== 1 ? "S" : ""}
+                  </div>
+                </div>
+                <div className="overflow-x-auto">
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr className="text-[11px] uppercase tracking-wider text-muted-foreground bg-surface/40">
+                        <th className="text-left px-4 py-2.5">{label} Name</th>
+                        <th className="text-left px-4 py-2.5">{label} ID</th>
+                        <th className="text-left px-4 py-2.5">Ad Account</th>
+                        <th className="text-left px-4 py-2.5">Status</th>
+                        <th className="text-right px-4 py-2.5">Spend</th>
+                        <th className="text-right px-4 py-2.5">Results</th>
                       </tr>
-                    );
-                  })
-                )}
-              </tbody>
-            </table>
-          </div>
+                    </thead>
+                    <tbody>
+                      {rows.length === 0 ? (
+                        <tr>
+                          <td
+                            colSpan={6}
+                            className="text-center py-12 text-muted-foreground text-sm"
+                          >
+                            No assigned {label.toLowerCase()}s.
+                          </td>
+                        </tr>
+                      ) : (
+                        rows.map((r: any) => {
+                          const acct: any = acctById.get(r.ad_account_id);
+                          const fbId = showAdSets ? r.fb_adset_id : r.fb_ad_id;
+                          return (
+                            <tr
+                              key={r.id}
+                              className="border-t border-border/40 hover:bg-surface/40"
+                            >
+                              <td className="px-4 py-3 max-w-[260px]">
+                                <div className="font-medium truncate">{r.name}</div>
+                              </td>
+                              <td className="px-4 py-3">
+                                <code className="text-xs font-mono text-muted-foreground">
+                                  {fbId}
+                                </code>
+                              </td>
+                              <td className="px-4 py-3 text-muted-foreground">
+                                {acct?.account_name ?? acct?.fb_account_id ?? "—"}
+                              </td>
+                              <td className="px-4 py-3">
+                                <span className="text-[10px] font-semibold uppercase rounded-full px-2 py-0.5 bg-surface text-muted-foreground">
+                                  {r.effective_status ?? "—"}
+                                </span>
+                              </td>
+                              <td className="px-4 py-3 text-right font-medium">
+                                {fmtUSD(r.spend)}
+                              </td>
+                              <td className="px-4 py-3 text-right text-primary font-medium">
+                                {fmtInt(r.results)}
+                              </td>
+                            </tr>
+                          );
+                        })
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              </>
+            );
+          })()}
         </div>
       </div>
     </div>

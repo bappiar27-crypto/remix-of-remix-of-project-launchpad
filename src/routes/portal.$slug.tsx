@@ -287,11 +287,26 @@ export function PortalDashboard({ slug, token }: { slug: string; token?: string 
 
   // Last 7 days = today + previous 6 calendar days, not "last 7 cached rows".
 
-  // Featured campaign = top by spend
-  const featured = (campaigns as any[])[0];
-  const featuredSpend = featured ? Number(featured.spend) || 0 : 0;
-  const featuredResults = featured ? Number(featured.results) || 0 : 0;
-  const featuredCtr = featured ? Number(featured.ctr) || 0 : 0;
+  // Featured campaign = top by spend.
+  // CRITICAL: when ad-set scope is active, featured numbers MUST come from the
+  // same scope-aware totals as the KPIs — otherwise the hero card shows the
+  // parent campaign total (e.g. $49.56) while KPIs show the assigned ad set
+  // total (e.g. $48.19), producing a visible mismatch.
+  const adsetScoped = !!(d as any)?.adsetScoped;
+  const featured = adsetScoped ? (adSets as any[])[0] : (campaigns as any[])[0];
+  const featuredSpend = adsetScoped ? totals.spend : featured ? Number(featured.spend) || 0 : 0;
+  const featuredResults = adsetScoped
+    ? totals.results
+    : featured
+      ? Number(featured.results) || 0
+      : 0;
+  const featuredCtr = adsetScoped
+    ? totals.impressions > 0
+      ? (totals.clicks / totals.impressions) * 100
+      : 0
+    : featured
+      ? Number(featured.ctr) || 0
+      : 0;
   const featuredCostPerResult = featuredResults > 0 ? mk(featuredSpend) / featuredResults : 0;
 
   // Budget (deposit is what the CLIENT paid — already client-facing, no markup needed)
