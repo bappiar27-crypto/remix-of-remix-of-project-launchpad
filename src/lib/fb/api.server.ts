@@ -361,7 +361,12 @@ export const fb = {
   // NEW — Per-adset daily time series. We use this so the portal always has
   // ground-truth metrics for every ad set even when Meta's "maximum" preset
   // returns no row for a brand-new ad set on day 1.
-  async getAdSetTimeSeries(actId: string, token: string, datePreset = "last_30d") {
+  async getAdSetTimeSeries(
+    actId: string,
+    token: string,
+    datePreset = "last_30d",
+    fbAdsetIds: string[] = [],
+  ) {
     const params: Record<string, string> = {
       level: "adset",
       time_increment: "1",
@@ -370,6 +375,11 @@ export const fb = {
       limit: "500",
       ...INSIGHTS_ATTRIBUTION_PARAMS,
     };
+    if (fbAdsetIds.length > 0) {
+      params.filtering = JSON.stringify([
+        { field: "adset.id", operator: "IN", value: fbAdsetIds },
+      ]);
+    }
     if (datePreset === "last_30d") params.time_range = recentRangeThroughToday(30);
     else params.date_preset = datePreset;
     return fbFetchAll(`/${actId}/insights`, params, token);

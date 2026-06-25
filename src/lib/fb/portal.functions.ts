@@ -215,10 +215,22 @@ export const getClientPortalData = createServerFn({ method: "POST" })
           ads = scopedAds ?? [];
         }
 
-        // Narrow `accounts` to only those that actually host the scoped ad sets,
-        // so KPIs / time-series stay within the assigned ad set's account.
+        // Load the accounts that actually host the scoped ad sets. Do not rely on
+        // ad_accounts.client_id here: ad-set-only portal assignments often point
+        // to an account owned by the agency/import client, not by this client row.
+        // If we only filter the client's own accounts, Refresh has no account to
+        // sync and the portal keeps showing the old ad_sets snapshot forever.
         if (scopedAccountIds.length) {
-          accounts = accounts.filter((a: any) => scopedAccountIds.includes(a.id));
+          const { data: scopedAccounts } = await supabaseAdmin
+            .from("ad_accounts")
+            .select(
+              "id,connection_id,fb_account_id,account_name,currency,timezone_name,business_name,total_spend,total_reach,total_impressions,total_clicks,total_results,active_campaigns,last_sync_at,last_sync_status,account_status",
+            )
+            .in("id", scopedAccountIds)
+            .eq("is_active", true);
+          accounts = scopedAccounts ?? [];
+        } else {
+          accounts = [];
         }
       } else if (accountIds.length) {
         const [{ data: accountCampaigns }, { data: accountAdSets }, { data: accountAds }] =
@@ -263,7 +275,7 @@ export const getClientPortalData = createServerFn({ method: "POST" })
     let liveTimeSeries: any[] | null = null;
     if (accounts.length > 0) {
       try {
-        const { fb } = await import("./api.server");
+        const { fb, extractPrimaryResults } = await import("./api.server");
         const { data: settings } = await supabaseAdmin
           .from("app_settings")
           .select("fb_system_user_token")
@@ -277,7 +289,30 @@ export const getClientPortalData = createServerFn({ method: "POST" })
             settings?.fb_system_user_token,
           );
           if (!token) continue;
-          if (assignedFbCampaignIds.length > 0) {
+          if (assignedAdsetFbIds.length > 0) {
+            // Ad-set scoped portals must use ad-set insights. Fetching the parent
+            // campaign would include sibling ad sets and can never match Ads Manager
+            // for a single assigned ad set.
+            const acctAdsetFbIds = adSets
+              .filter((s: any) => s.ad_account_id === account.id)
+              .map((s: any) => s.fb_adset_id)
+              .filter(Boolean);
+            if (acctAdsetFbIds.length === 0) continue;
+            const rows = await fb.getAdSetTimeSeries(
+              account.fb_account_id,
+              token,
+              "last_30d",
+              acctAdsetFbIds,
+            );
+            liveRows.push(
+              ...rows.map((row: any) => ({
+                ...row,
+                ad_account_id: account.id,
+                entity_id: row.adset_id,
+                results: extractPrimaryResults(row.actions, row.optimization_goal),
+              })),
+            );
+          } else if (assignedFbCampaignIds.length > 0) {
             // Only campaigns belonging to THIS account
             const acctCampaignFbIds = campaigns
               .filter((c: any) => c.ad_account_id === account.id)
@@ -290,10 +325,24 @@ export const getClientPortalData = createServerFn({ method: "POST" })
               acctCampaignFbIds,
               "last_30d",
             );
-            liveRows.push(...rows.map((row: any) => ({ ...row, ad_account_id: account.id })));
+            liveRows.push(
+              ...rows.map((row: any) => ({
+                ...row,
+                ad_account_id: account.id,
+                entity_id: row.campaign_id,
+                results: extractPrimaryResults(row.actions, row.optimization_goal),
+              })),
+            );
           } else {
             const rows = await fb.getTimeSeries(account.fb_account_id, token, "last_30d");
-            liveRows.push(...rows.map((row: any) => ({ ...row, ad_account_id: account.id })));
+            liveRows.push(
+              ...rows.map((row: any) => ({
+                ...row,
+                ad_account_id: account.id,
+                entity_id: account.fb_account_id,
+                results: extractPrimaryResults(row.actions),
+              })),
+            );
           }
         }
         liveTimeSeries = liveRows;
@@ -306,7 +355,21 @@ export const getClientPortalData = createServerFn({ method: "POST" })
     let dbTimeSeries: any[] = [];
     if (accountIds.length) {
       const sinceStr = new Date(Date.now() - 29 * 86400000).toISOString().slice(0, 10);
-      if (assignedFbCampaignIds.length > 0) {
+      if (assignedAdsetFbIds.length > 0) {
+        if (liveTimeSeries && liveTimeSeries.length > 0) {
+          dbTimeSeries = [];
+        } else {
+          const { data: ts } = await supabaseAdmin
+            .from("insights_snapshots")
+            .select("ad_account_id,date_start,spend,reach,impressions,clicks,results,entity_id")
+            .in("ad_account_id", accountIds)
+            .eq("level", "adset")
+            .in("entity_id", assignedAdsetFbIds)
+            .gte("date_start", sinceStr)
+            .order("date_start", { ascending: true });
+          dbTimeSeries = ts ?? [];
+        }
+      } else if (assignedFbCampaignIds.length > 0) {
         const { data: ts } = await supabaseAdmin
           .from("insights_snapshots")
           .select("ad_account_id,date_start,spend,reach,impressions,clicks,results,entity_id")
@@ -337,20 +400,29 @@ export const getClientPortalData = createServerFn({ method: "POST" })
       const sinceStr = new Date(Date.now() - 29 * 86400000).toISOString().slice(0, 10);
       const allFbIds = adSets.map((s: any) => s.fb_adset_id).filter(Boolean);
       if (allFbIds.length > 0) {
-        const { data: snaps } = await supabaseAdmin
-          .from("insights_snapshots")
-          .select("entity_id,spend,reach,impressions,clicks,results")
-          .in("ad_account_id", accountIds)
-          .eq("level", "adset")
-          .in("entity_id", allFbIds)
-          .gte("date_start", sinceStr);
+        const liveAdsetRows = (liveTimeSeries ?? []).filter((r: any) =>
+          allFbIds.includes(r.entity_id ?? r.adset_id),
+        );
+        let sourceRows = liveAdsetRows;
+
+        if (sourceRows.length === 0) {
+          const { data: snaps } = await supabaseAdmin
+            .from("insights_snapshots")
+            .select("entity_id,spend,reach,impressions,clicks,results")
+            .in("ad_account_id", accountIds)
+            .eq("level", "adset")
+            .in("entity_id", allFbIds)
+            .gte("date_start", sinceStr);
+          sourceRows = snaps ?? [];
+        }
 
         const agg = new Map<
           string,
           { spend: number; reach: number; impressions: number; clicks: number; results: number }
         >();
-        for (const r of snaps ?? []) {
-          const id = (r as any).entity_id;
+        for (const r of sourceRows) {
+          const id = (r as any).entity_id ?? (r as any).adset_id;
+          if (!id) continue;
           const cur = agg.get(id) ?? { spend: 0, reach: 0, impressions: 0, clicks: 0, results: 0 };
           cur.spend += Number((r as any).spend) || 0;
           cur.impressions += Number((r as any).impressions) || 0;
@@ -540,14 +612,34 @@ export const triggerClientSync = createServerFn({ method: "POST" })
       .eq("client_id", client.id);
     const assignedIds = (assigned ?? []).map((a) => a.campaign_id);
 
+    const { data: assignedAdsetRows } = await (supabaseAdmin as any)
+      .from("client_ad_sets")
+      .select("fb_adset_id")
+      .eq("client_id", client.id);
+    const assignedAdsetFbIds = (assignedAdsetRows ?? [])
+      .map((r: any) => r.fb_adset_id)
+      .filter(Boolean);
+
     let accountIds: string[] = [];
     if (assignedIds.length) {
       const { data: cs } = await supabaseAdmin
         .from("campaigns")
         .select("ad_account_id")
         .in("id", assignedIds);
-      accountIds = Array.from(new Set((cs ?? []).map((c) => c.ad_account_id).filter(Boolean)));
-    } else {
+      accountIds = (cs ?? []).map((c) => c.ad_account_id).filter(Boolean);
+    }
+
+    if (assignedAdsetFbIds.length) {
+      const { data: scopedSets } = await supabaseAdmin
+        .from("ad_sets")
+        .select("ad_account_id")
+        .in("fb_adset_id", assignedAdsetFbIds);
+      accountIds.push(...((scopedSets ?? []).map((s) => s.ad_account_id).filter(Boolean)));
+    }
+
+    accountIds = Array.from(new Set(accountIds));
+
+    if (!accountIds.length) {
       const { data: as } = await supabaseAdmin
         .from("ad_accounts")
         .select("id")
@@ -555,22 +647,41 @@ export const triggerClientSync = createServerFn({ method: "POST" })
         .eq("is_active", true);
       accountIds = (as ?? []).map((a) => a.id);
     }
-    if (!accountIds.length) return { ok: true as const, synced: 0, skipped: 0 };
+    if (!accountIds.length) return { ok: true as const, synced: 0, skipped: 0, failed: 0 };
 
     const minAgeSec = data.minAgeSec ?? 50;
     const cutoff = new Date(Date.now() - minAgeSec * 1000).toISOString();
     const { data: accounts } = await supabaseAdmin
       .from("ad_accounts")
-      .select("id,last_sync_at")
+      .select("id,last_sync_at,last_sync_status")
       .in("id", accountIds);
 
     const toSync = (accounts ?? []).filter(
-      (a) => data.force || !a.last_sync_at || a.last_sync_at < cutoff,
+      (a) =>
+        data.force ||
+        a.last_sync_status === "failed" ||
+        !a.last_sync_at ||
+        a.last_sync_at < cutoff,
     );
-    if (!toSync.length) return { ok: true as const, synced: 0, skipped: accountIds.length };
+    if (!toSync.length) {
+      return { ok: true as const, synced: 0, skipped: accountIds.length, failed: 0 };
+    }
 
     const { syncAdAccount } = await import("./sync.server");
     const results = await Promise.allSettled(toSync.map((a) => syncAdAccount(a.id)));
-    const okCount = results.filter((r) => r.status === "fulfilled").length;
-    return { ok: true as const, synced: okCount, skipped: accountIds.length - toSync.length };
+    const synced = results.filter((r) => r.status === "fulfilled" && r.value?.ok).length;
+    const errors = results
+      .map((r) => {
+        if (r.status === "rejected") return (r.reason as Error)?.message ?? String(r.reason);
+        return r.value?.ok ? null : r.value?.error || "Sync failed";
+      })
+      .filter(Boolean) as string[];
+    const failed = errors.length;
+    return {
+      ok: failed === 0,
+      synced,
+      skipped: accountIds.length - toSync.length,
+      failed,
+      errors,
+    };
   });
