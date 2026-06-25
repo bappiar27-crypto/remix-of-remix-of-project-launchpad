@@ -27,6 +27,8 @@ import {
   X,
   Plus,
   Activity,
+  UserCheck,
+
 } from "lucide-react";
 import { toast } from "sonner";
 import { Logo } from "@/components/Logo";
@@ -39,6 +41,16 @@ export const Route = createFileRoute("/_authenticated")({
   beforeLoad: async () => {
     const { data, error } = await supabase.auth.getUser();
     if (error || !data.user) throw redirect({ to: "/auth" });
+    // Defense in depth: block non-approved users from anything inside /_authenticated.
+    const { data: prof } = await supabase
+      .from("profiles")
+      .select("approval_status")
+      .eq("id", data.user.id)
+      .maybeSingle();
+    if (!prof || prof.approval_status !== "approved") {
+      await supabase.auth.signOut();
+      throw redirect({ to: "/auth" });
+    }
     return { user: data.user };
   },
   component: AuthedLayout,
@@ -176,6 +188,14 @@ function AuthedLayout() {
           <NavSection title={t("nav.main")} items={NAV_MAIN} />
           <NavSection title={t("nav.management")} items={NAV_MANAGEMENT} />
           <NavSection title={t("nav.system")} items={NAV_SYSTEM} />
+          {profile.isAdmin && (
+            <NavSection
+              title="Admin"
+              items={[
+                { to: "/admin-approvals", labelKey: "User Approvals", icon: UserCheck },
+              ]}
+            />
+          )}
         </div>
 
         <div className="border-t border-sidebar-border px-4 py-3 flex items-center gap-2 text-xs text-muted-foreground">

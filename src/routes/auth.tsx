@@ -3,6 +3,8 @@ import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { lovable } from "@/integrations/lovable";
 import { ensureBootstrapAdmin } from "@/lib/auth-bootstrap.functions";
+import { getMyApprovalStatus } from "@/lib/approvals.functions";
+import { checkIpBlocked, recordLoginAttempt } from "@/lib/login-guard.functions";
 import { toast } from "sonner";
 import { Loader2 } from "lucide-react";
 import { useServerFn } from "@tanstack/react-start";
@@ -13,9 +15,36 @@ export const Route = createFileRoute("/auth")({
   component: AuthPage,
 });
 
+async function gateAfterSession(
+  ensureAdminFn: (args: { data: any }) => Promise<any>,
+  getStatusFn: (args: { data: any }) => Promise<{ status: string }>,
+  nav: ReturnType<typeof useNavigate>,
+) {
+  // Bootstrap admin first (so first signup becomes admin + approved).
+  await ensureAdminFn({ data: undefined as any });
+  const { status } = await getStatusFn({ data: undefined as any });
+  if (status === "approved") {
+    nav({ to: "/dashboard" });
+    return true;
+  }
+  await supabase.auth.signOut();
+  if (status === "rejected") {
+    toast.error("Your account access has been rejected. Contact the admin.");
+  } else {
+    toast.info(
+      "Your account is awaiting admin approval. You'll be able to sign in once approved.",
+      { duration: 6000 },
+    );
+  }
+  return false;
+}
+
 function AuthPage() {
   const nav = useNavigate();
   const ensureAdminFn = useServerFn(ensureBootstrapAdmin);
+  const getStatusFn = useServerFn(getMyApprovalStatus);
+  const checkBlocked = useServerFn(checkIpBlocked);
+  const recordAttempt = useServerFn(recordLoginAttempt);
   const [mode, setMode] = useState<"signin" | "signup">("signin");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -25,32 +54,49 @@ function AuthPage() {
   useEffect(() => {
     supabase.auth.getSession().then(({ data }) => {
       if (data.session) {
-        ensureAdminFn({ data: undefined as any }).finally(() => nav({ to: "/dashboard" }));
+        gateAfterSession(ensureAdminFn, getStatusFn, nav);
       }
     });
-  }, [nav]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const onSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
     try {
+      const guard = await checkBlocked({ data: undefined as any });
+      if (guard.blocked) {
+        toast.error("This IP has been blocked after repeated failed sign-in attempts. Contact the admin to unblock.");
+        return;
+      }
       if (mode === "signup") {
-        const { error } = await supabase.auth.signUp({
+        const { data: signupData, error } = await supabase.auth.signUp({
           email,
           password,
           options: {
             data: { full_name: fullName },
-            emailRedirectTo: window.location.origin + "/dashboard",
+            emailRedirectTo: window.location.origin + "/auth",
           },
         });
         if (error) throw error;
-        toast.success("Account created — signing in…");
+        if (!signupData.session) {
+          toast.info(
+            "Account created. Confirm your email, then wait for admin approval before signing in.",
+            { duration: 7000 },
+          );
+          setMode("signin");
+        } else {
+          await gateAfterSession(ensureAdminFn, getStatusFn, nav);
+        }
       } else {
         const { error } = await supabase.auth.signInWithPassword({ email, password });
-        if (error) throw error;
+        if (error) {
+          await recordAttempt({ data: { email, success: false } });
+          throw error;
+        }
+        await recordAttempt({ data: { email, success: true } });
+        await gateAfterSession(ensureAdminFn, getStatusFn, nav);
       }
-      await ensureAdminFn({ data: undefined as any });
-      nav({ to: "/dashboard" });
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Authentication failed");
     } finally {
@@ -61,7 +107,7 @@ function AuthPage() {
   const onGoogle = async () => {
     setLoading(true);
     const res = await lovable.auth.signInWithOAuth("google", {
-      redirect_uri: window.location.origin + "/dashboard",
+      redirect_uri: window.location.origin + "/auth",
     });
     if (res.error) {
       toast.error(res.error.message ?? "Google sign-in failed");
@@ -69,8 +115,10 @@ function AuthPage() {
       return;
     }
     if (res.redirected) return;
-    nav({ to: "/dashboard" });
+    await gateAfterSession(ensureAdminFn, getStatusFn, nav);
+    setLoading(false);
   };
+
 
   return (
     <div className="min-h-screen grid lg:grid-cols-2">

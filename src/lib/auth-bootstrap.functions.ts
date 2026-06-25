@@ -57,6 +57,11 @@ export const ensureBootstrapAdmin = createServerFn({ method: "POST" })
         .from("user_roles")
         .upsert(adminRole, { onConflict: "user_id,role" });
       if (insertError) throw new Error(insertError.message);
+      // First-admin bootstrap → auto-approve so they can log in immediately.
+      await supabaseAdmin
+        .from("profiles")
+        .update({ approval_status: "approved", approved_at: new Date().toISOString() })
+        .eq("id", context.userId);
       return { isAdmin: true, bootstrapped: true };
     }
 
