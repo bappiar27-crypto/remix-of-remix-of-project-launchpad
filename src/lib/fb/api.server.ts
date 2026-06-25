@@ -358,9 +358,33 @@ export const fb = {
     else params.date_preset = datePreset;
     return fbFetchAll(`/${actId}/insights`, params, token);
   },
-  // NEW — Per-adset daily time series. We use this so the portal always has
-  // ground-truth metrics for every ad set even when Meta's "maximum" preset
-  // returns no row for a brand-new ad set on day 1.
+  // Per-adset aggregate insights without time_increment. Use this for totals
+  // that must match Ads Manager exactly: reach is a unique metric and cannot
+  // be reconstructed by summing or maxing daily rows.
+  async getAdSetAggregateInsights(
+    actId: string,
+    token: string,
+    datePreset = "maximum",
+    fbAdsetIds: string[] = [],
+  ) {
+    const params: Record<string, string> = {
+      level: "adset",
+      fields:
+        "campaign_id,adset_id,adset_name,spend,reach,impressions,clicks,ctr,cpc,cpm,frequency,actions,optimization_goal,date_start,date_stop",
+      limit: "500",
+      ...INSIGHTS_ATTRIBUTION_PARAMS,
+    };
+    if (fbAdsetIds.length > 0) {
+      params.filtering = JSON.stringify([
+        { field: "adset.id", operator: "IN", value: fbAdsetIds },
+      ]);
+    }
+    if (datePreset === "last_30d") params.time_range = recentRangeThroughToday(30);
+    else params.date_preset = datePreset;
+    return fbFetchAll(`/${actId}/insights`, params, token);
+  },
+  // Per-adset daily time series. Use only for charts/range trends, not lifetime
+  // totals, because unique reach cannot be reconstructed from daily rows.
   async getAdSetTimeSeries(
     actId: string,
     token: string,

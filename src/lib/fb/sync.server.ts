@@ -387,11 +387,9 @@ export async function syncAdAccount(adAccountId: string) {
           .upsert(chunk, { onConflict: "ad_account_id,level,entity_id,date_start,date_stop" });
       }
 
-      // Roll the daily rows up into the ad_sets table so any consumer reading
-      // ad_sets.* directly (older queries, exports) also sees real numbers.
-      // This OVERWRITES the earlier "maximum"-preset update because the
-      // last_30d rollup is more reliable for new ad sets than Meta's
-      // "maximum" preset (which can return nothing on day 1).
+      // Roll the daily rows up only as a ZERO-ROW fallback. Never overwrite
+      // the earlier "maximum" aggregate insights: Ads Manager totals (especially
+      // unique reach) cannot be reconstructed from daily rows without mismatch.
       const agg = new Map<
         string,
         {
@@ -441,7 +439,12 @@ export async function syncAdAccount(adAccountId: string) {
             results: v.results,
           })
           .eq("fb_adset_id", fbAdsetId)
-          .eq("ad_account_id", account.id);
+          .eq("ad_account_id", account.id)
+          .eq("spend", 0)
+          .eq("reach", 0)
+          .eq("impressions", 0)
+          .eq("clicks", 0)
+          .eq("results", 0);
       }
     }
 

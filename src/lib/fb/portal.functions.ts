@@ -273,6 +273,7 @@ export const getClientPortalData = createServerFn({ method: "POST" })
     //     to ONLY their campaigns (matches Ads Manager numbers exactly).
     //   * No assignments → account-level time series (whole ad account).
     let liveTimeSeries: any[] | null = null;
+    const liveAdsetAggregateById = new Map<string, any>();
     if (accounts.length > 0) {
       try {
         const { fb, extractPrimaryResults } = await import("./api.server");
@@ -298,6 +299,34 @@ export const getClientPortalData = createServerFn({ method: "POST" })
               .map((s: any) => s.fb_adset_id)
               .filter(Boolean);
             if (acctAdsetFbIds.length === 0) continue;
+
+            // Exact current totals must come from Meta aggregate insights without
+            // time_increment. Ads Manager's Reach is unique over the selected
+            // range, so daily rows cannot be recomposed into the same number.
+            const aggregateRows = await fb.getAdSetAggregateInsights(
+              account.fb_account_id,
+              token,
+              "maximum",
+              acctAdsetFbIds,
+            );
+            for (const row of aggregateRows as any[]) {
+              if (!row?.adset_id || !acctAdsetFbIds.includes(row.adset_id)) continue;
+              const adSet = (adSets as any[]).find((s: any) => s.fb_adset_id === row.adset_id);
+              const goal = row.optimization_goal ?? adSet?.optimization_goal ?? null;
+              const results = extractPrimaryResults(row.actions, goal);
+              liveAdsetAggregateById.set(row.adset_id, { ...row, results });
+              if (!adSet) continue;
+              adSet.spend = Number(row.spend) || 0;
+              adSet.reach = Number(row.reach) || 0;
+              adSet.impressions = Number(row.impressions) || 0;
+              adSet.clicks = Number(row.clicks) || 0;
+              adSet.ctr = Number(row.ctr) || 0;
+              adSet.cpc = Number(row.cpc) || 0;
+              adSet.cpm = Number(row.cpm) || 0;
+              adSet.frequency = Number(row.frequency) || 0;
+              adSet.results = results;
+            }
+
             const rows = await fb.getAdSetTimeSeries(
               account.fb_account_id,
               token,
@@ -443,6 +472,17 @@ export const getClientPortalData = createServerFn({ method: "POST" })
           const hasData =
             v.spend > 0 || v.impressions > 0 || v.clicks > 0 || v.results > 0 || v.reach > 0;
           if (!hasData) continue;
+          // Daily rows are only a fallback for zero rows. They are not allowed
+          // to overwrite aggregate Ads Manager totals, because reach is unique
+          // over the whole range and daily max/sum creates visible mismatches.
+          const alreadyHasAggregateData =
+            liveAdsetAggregateById.has(s.fb_adset_id) ||
+            Number(s.spend) > 0 ||
+            Number(s.impressions) > 0 ||
+            Number(s.clicks) > 0 ||
+            Number(s.results) > 0 ||
+            Number(s.reach) > 0;
+          if (alreadyHasAggregateData) continue;
           s.spend = v.spend;
           s.impressions = v.impressions;
           s.clicks = v.clicks;
