@@ -593,3 +593,32 @@
   animation: gv-brand-shimmer 4s ease-in-out infinite;
   text-shadow: 0 0 24px color-mix(in oklab, var(--primary) 25%, transparent);
 }
+
+/* ── Invoice print / PDF ───────────────────────────────────────── */
+@media print {
+  @page {
+    size: A4;
+    margin: 12mm;
+  }
+  body {
+    background: #fff !important;
+  }
+  /* শুধু invoice sheet প্রিন্ট হবে, sidebar/header নয় */
+  body * {
+    visibility: hidden;
+  }
+  #invoice-print-area,
+  #invoice-print-area * {
+    visibility: visible;
+  }
+  #invoice-print-area {
+    position: absolute;
+    inset: 0 auto auto 0;
+    width: 100%;
+  }
+  .invoice-sheet {
+    box-shadow: none !important;
+    padding: 0 !important;
+    max-width: 100% !important;
+  }
+}

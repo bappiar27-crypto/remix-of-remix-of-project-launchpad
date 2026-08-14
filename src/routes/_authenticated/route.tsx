@@ -28,13 +28,17 @@ import {
   Plus,
   Activity,
   UserCheck,
-
+  ReceiptText,
 } from "lucide-react";
 import { toast } from "sonner";
 import { Logo } from "@/components/Logo";
 import { useI18n } from "@/lib/i18n-context";
 import { LiveClock } from "@/components/LiveClock";
-import { ThemePicker, LanguageToggle, ModeToggle } from "@/components/HeaderControls";
+import {
+  ThemePicker,
+  LanguageToggle,
+  ModeToggle,
+} from "@/components/HeaderControls";
 
 export const Route = createFileRoute("/_authenticated")({
   ssr: false,
@@ -66,6 +70,7 @@ const NAV_MAIN = [
 
 const NAV_MANAGEMENT = [
   { to: "/clients", labelKey: "nav.clients", icon: Users },
+  { to: "/invoices", labelKey: "nav.invoices", icon: ReceiptText },
   { to: "/reports", labelKey: "nav.reports", icon: FileText },
   { to: "/budget-tracker", labelKey: "nav.budget", icon: Wallet },
   { to: "/alerts", labelKey: "nav.alerts", icon: BellRing },
@@ -83,12 +88,18 @@ function AuthedLayout() {
   const loc = useLocation();
   const ensureAdminFn = useServerFn(ensureBootstrapAdmin);
   const [open, setOpen] = useState(false);
-  const [profile, setProfile] = useState<{ name: string; email: string; isAdmin: boolean }>({
+  const [profile, setProfile] = useState<{
+    name: string;
+    email: string;
+    isAdmin: boolean;
+  }>({
     name: "",
     email: "",
     isAdmin: false,
   });
-  const [accountsConnected, setAccountsConnected] = useState<number | null>(null);
+  const [accountsConnected, setAccountsConnected] = useState<number | null>(
+    null,
+  );
 
   useEffect(() => {
     (async () => {
@@ -98,7 +109,11 @@ function AuthedLayout() {
       if (!user) return;
       await ensureAdminFn({ data: undefined as any });
       const [{ data: prof }, { data: roles }, { count }] = await Promise.all([
-        supabase.from("profiles").select("full_name,email").eq("id", user.id).maybeSingle(),
+        supabase
+          .from("profiles")
+          .select("full_name,email")
+          .eq("id", user.id)
+          .maybeSingle(),
         supabase.from("user_roles").select("role").eq("user_id", user.id),
         supabase
           .from("ad_accounts")
@@ -138,7 +153,8 @@ function AuthedLayout() {
             to={to}
             onClick={() => setOpen(false)}
             activeProps={{
-              className: "bg-sidebar-accent text-sidebar-primary border-l-2 border-l-primary",
+              className:
+                "bg-sidebar-accent text-sidebar-primary border-l-2 border-l-primary",
             }}
             inactiveProps={{
               className:
@@ -163,12 +179,17 @@ function AuthedLayout() {
         <div className="px-5 py-4 border-b border-sidebar-border flex items-center gap-3">
           <Logo className="h-10 w-auto" />
           <div className="flex-1">
-            <div className="font-display font-bold text-sm">GrowVibe Ads Solution</div>
+            <div className="font-display font-bold text-sm">
+              GrowVibe Ads Solution
+            </div>
             <div className="text-[11px] text-muted-foreground truncate">
               {profile.email || "..."}
             </div>
           </div>
-          <button onClick={() => setOpen(false)} className="lg:hidden text-muted-foreground">
+          <button
+            onClick={() => setOpen(false)}
+            className="lg:hidden text-muted-foreground"
+          >
             <X className="size-5" />
           </button>
         </div>
@@ -177,7 +198,9 @@ function AuthedLayout() {
             {(profile.name || "U").slice(0, 1).toUpperCase()}
           </div>
           <div className="text-sm">
-            <div className="font-semibold leading-tight">{profile.name || t("user.default")}</div>
+            <div className="font-semibold leading-tight">
+              {profile.name || t("user.default")}
+            </div>
             <div className="text-[11px] text-muted-foreground">
               {profile.isAdmin ? t("role.admin") : t("role.member")}
             </div>
@@ -192,7 +215,11 @@ function AuthedLayout() {
             <NavSection
               title="Admin"
               items={[
-                { to: "/admin-approvals", labelKey: "User Approvals", icon: UserCheck },
+                {
+                  to: "/admin-approvals",
+                  labelKey: "User Approvals",
+                  icon: UserCheck,
+                },
               ]}
             />
           )}
@@ -211,7 +238,10 @@ function AuthedLayout() {
       </aside>
 
       {open && (
-        <div onClick={() => setOpen(false)} className="lg:hidden fixed inset-0 bg-black/50 z-20" />
+        <div
+          onClick={() => setOpen(false)}
+          className="lg:hidden fixed inset-0 bg-black/50 z-20"
+        />
       )}
 
       {/* Main */}

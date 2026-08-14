@@ -26,6 +26,7 @@ const DICT: Record<string, { en: string; bn: string }> = {
   "nav.ads": { en: "Ads", bn: "বিজ্ঞাপন" },
   "nav.insights": { en: "Insights", bn: "ইনসাইটস" },
   "nav.clients": { en: "Clients", bn: "ক্লায়েন্ট" },
+  "nav.invoices": { en: "Invoices", bn: "ইনভয়েস" },
   "nav.reports": { en: "Reports", bn: "রিপোর্ট" },
   "nav.budget": { en: "Budget Tracker", bn: "বাজেট ট্র্যাকার" },
   "nav.alerts": { en: "Alerts", bn: "অ্যালার্ট" },
@@ -39,7 +40,10 @@ const DICT: Record<string, { en: string; bn: string }> = {
   "header.language": { en: "Language", bn: "ভাষা" },
   // Status
   "status.checking": { en: "Checking...", bn: "চেক করা হচ্ছে..." },
-  "status.noAccounts": { en: "No accounts connected", bn: "কোনো অ্যাকাউন্ট সংযুক্ত নয়" },
+  "status.noAccounts": {
+    en: "No accounts connected",
+    bn: "কোনো অ্যাকাউন্ট সংযুক্ত নয়",
+  },
   "status.live": { en: "live", bn: "লাইভ" },
   "role.admin": { en: "Super Admin", bn: "সুপার অ্যাডমিন" },
   "role.member": { en: "Member", bn: "সদস্য" },
@@ -54,7 +58,10 @@ const DICT: Record<string, { en: string; bn: string }> = {
     bn: "রিয়েল-টাইম ফেসবুক অ্যাডস পারফরম্যান্স —",
   },
   "portal.accounts": { en: "ad account(s)", bn: "অ্যাড অ্যাকাউন্ট" },
-  "portal.liveStatus": { en: "Live Status & Alerts", bn: "লাইভ স্ট্যাটাস ও অ্যালার্ট" },
+  "portal.liveStatus": {
+    en: "Live Status & Alerts",
+    bn: "লাইভ স্ট্যাটাস ও অ্যালার্ট",
+  },
   "portal.liveAuto": { en: "Live · auto-refresh", bn: "লাইভ · অটো-রিফ্রেশ" },
   "portal.refresh": { en: "Refresh", bn: "রিফ্রেশ" },
   "portal.totalSpend": { en: "Total Spend", bn: "মোট খরচ" },
@@ -65,11 +72,20 @@ const DICT: Record<string, { en: string; bn: string }> = {
   "portal.activeCamps": { en: "Active Campaigns", bn: "চলমান ক্যাম্পেইন" },
   "portal.ctr": { en: "CTR", bn: "সিটিআর" },
   "portal.costPerResult": { en: "Cost / Result", bn: "প্রতি রেজাল্টে খরচ" },
-  "portal.budgetPace": { en: "Budget pacing & forecast", bn: "বাজেট পেসিং ও পূর্বাভাস" },
-  "portal.avgDaily": { en: "Avg daily spend (7d)", bn: "গড় দৈনিক খরচ (৭ দিন)" },
+  "portal.budgetPace": {
+    en: "Budget pacing & forecast",
+    bn: "বাজেট পেসিং ও পূর্বাভাস",
+  },
+  "portal.avgDaily": {
+    en: "Avg daily spend (7d)",
+    bn: "গড় দৈনিক খরচ (৭ দিন)",
+  },
   "portal.weeklyProj": { en: "Weekly projection", bn: "সাপ্তাহিক পূর্বাভাস" },
   "portal.monthProj": { en: "Month-end projection", bn: "মাস শেষের পূর্বাভাস" },
-  "portal.perf30": { en: "Performance — last 30 days", bn: "পারফরম্যান্স — শেষ ৩০ দিন" },
+  "portal.perf30": {
+    en: "Performance — last 30 days",
+    bn: "পারফরম্যান্স — শেষ ৩০ দিন",
+  },
   "portal.topCamps": { en: "Top campaigns", bn: "সেরা ক্যাম্পেইন" },
   "portal.export": { en: "Export", bn: "এক্সপোর্ট" },
   "portal.poweredBy": { en: "Powered by", bn: "পরিচালিত —" },
@@ -115,7 +131,11 @@ const DICT: Record<string, { en: string; bn: string }> = {
   "common.last30": { en: "Last 30 days", bn: "শেষ ৩০ দিন" },
 };
 
-type Ctx = { lang: Lang; setLang: (l: Lang) => void; t: (key: string) => string };
+type Ctx = {
+  lang: Lang;
+  setLang: (l: Lang) => void;
+  t: (key: string) => string;
+};
 
 // ✅ Fix: default setLang-এ warning
 const I18nCtx = createContext<Ctx>({
