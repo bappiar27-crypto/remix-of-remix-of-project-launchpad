@@ -17,6 +17,7 @@ import { Route as ClientCodeRouteImport } from './routes/client.$code'
 import { Route as AuthenticatedSyncActivityRouteImport } from './routes/_authenticated/sync-activity'
 import { Route as AuthenticatedSettingsRouteImport } from './routes/_authenticated/settings'
 import { Route as AuthenticatedReportsRouteImport } from './routes/_authenticated/reports'
+import { Route as AuthenticatedInvoicesRouteImport } from './routes/_authenticated/invoices'
 import { Route as AuthenticatedInsightsRouteImport } from './routes/_authenticated/insights'
 import { Route as AuthenticatedFacebookMarketingApiRouteImport } from './routes/_authenticated/facebook-marketing-api'
 import { Route as AuthenticatedDashboardRouteImport } from './routes/_authenticated/dashboard'
@@ -25,7 +26,9 @@ import { Route as AuthenticatedCampaignsRouteImport } from './routes/_authentica
 import { Route as AuthenticatedBudgetTrackerRouteImport } from './routes/_authenticated/budget-tracker'
 import { Route as AuthenticatedAlertsRouteImport } from './routes/_authenticated/alerts'
 import { Route as AuthenticatedAdsRouteImport } from './routes/_authenticated/ads'
+import { Route as AuthenticatedAdminApprovalsRouteImport } from './routes/_authenticated/admin-approvals'
 import { Route as AuthenticatedAdSetsRouteImport } from './routes/_authenticated/ad-sets'
+import { Route as AuthenticatedInvoicesIdRouteImport } from './routes/_authenticated/invoices_.$id'
 import { Route as AuthenticatedClientsNewRouteImport } from './routes/_authenticated/clients_.new'
 import { Route as ApiPublicHooksSyncAllRouteImport } from './routes/api/public/hooks/sync-all'
 import { Route as ApiPublicHooksMetaWebhookRouteImport } from './routes/api/public/hooks/meta-webhook'
@@ -71,6 +74,11 @@ const AuthenticatedReportsRoute = AuthenticatedReportsRouteImport.update({
   path: '/reports',
   getParentRoute: () => AuthenticatedRouteRoute,
 } as any)
+const AuthenticatedInvoicesRoute = AuthenticatedInvoicesRouteImport.update({
+  id: '/invoices',
+  path: '/invoices',
+  getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
 const AuthenticatedInsightsRoute = AuthenticatedInsightsRouteImport.update({
   id: '/insights',
   path: '/insights',
@@ -113,9 +121,20 @@ const AuthenticatedAdsRoute = AuthenticatedAdsRouteImport.update({
   path: '/ads',
   getParentRoute: () => AuthenticatedRouteRoute,
 } as any)
+const AuthenticatedAdminApprovalsRoute =
+  AuthenticatedAdminApprovalsRouteImport.update({
+    id: '/admin-approvals',
+    path: '/admin-approvals',
+    getParentRoute: () => AuthenticatedRouteRoute,
+  } as any)
 const AuthenticatedAdSetsRoute = AuthenticatedAdSetsRouteImport.update({
   id: '/ad-sets',
   path: '/ad-sets',
+  getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
+const AuthenticatedInvoicesIdRoute = AuthenticatedInvoicesIdRouteImport.update({
+  id: '/invoices_/$id',
+  path: '/invoices/$id',
   getParentRoute: () => AuthenticatedRouteRoute,
 } as any)
 const AuthenticatedClientsNewRoute = AuthenticatedClientsNewRouteImport.update({
@@ -145,6 +164,7 @@ export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/auth': typeof AuthRoute
   '/ad-sets': typeof AuthenticatedAdSetsRoute
+  '/admin-approvals': typeof AuthenticatedAdminApprovalsRoute
   '/ads': typeof AuthenticatedAdsRoute
   '/alerts': typeof AuthenticatedAlertsRoute
   '/budget-tracker': typeof AuthenticatedBudgetTrackerRoute
@@ -153,12 +173,14 @@ export interface FileRoutesByFullPath {
   '/dashboard': typeof AuthenticatedDashboardRoute
   '/facebook-marketing-api': typeof AuthenticatedFacebookMarketingApiRoute
   '/insights': typeof AuthenticatedInsightsRoute
+  '/invoices': typeof AuthenticatedInvoicesRoute
   '/reports': typeof AuthenticatedReportsRoute
   '/settings': typeof AuthenticatedSettingsRoute
   '/sync-activity': typeof AuthenticatedSyncActivityRoute
   '/client/$code': typeof ClientCodeRoute
   '/portal/$slug': typeof PortalSlugRoute
   '/clients/new': typeof AuthenticatedClientsNewRoute
+  '/invoices/$id': typeof AuthenticatedInvoicesIdRoute
   '/clients/$slug/report': typeof AuthenticatedClientsSlugReportRoute
   '/api/public/hooks/meta-webhook': typeof ApiPublicHooksMetaWebhookRoute
   '/api/public/hooks/sync-all': typeof ApiPublicHooksSyncAllRoute
@@ -167,6 +189,7 @@ export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/auth': typeof AuthRoute
   '/ad-sets': typeof AuthenticatedAdSetsRoute
+  '/admin-approvals': typeof AuthenticatedAdminApprovalsRoute
   '/ads': typeof AuthenticatedAdsRoute
   '/alerts': typeof AuthenticatedAlertsRoute
   '/budget-tracker': typeof AuthenticatedBudgetTrackerRoute
@@ -175,12 +198,14 @@ export interface FileRoutesByTo {
   '/dashboard': typeof AuthenticatedDashboardRoute
   '/facebook-marketing-api': typeof AuthenticatedFacebookMarketingApiRoute
   '/insights': typeof AuthenticatedInsightsRoute
+  '/invoices': typeof AuthenticatedInvoicesRoute
   '/reports': typeof AuthenticatedReportsRoute
   '/settings': typeof AuthenticatedSettingsRoute
   '/sync-activity': typeof AuthenticatedSyncActivityRoute
   '/client/$code': typeof ClientCodeRoute
   '/portal/$slug': typeof PortalSlugRoute
   '/clients/new': typeof AuthenticatedClientsNewRoute
+  '/invoices/$id': typeof AuthenticatedInvoicesIdRoute
   '/clients/$slug/report': typeof AuthenticatedClientsSlugReportRoute
   '/api/public/hooks/meta-webhook': typeof ApiPublicHooksMetaWebhookRoute
   '/api/public/hooks/sync-all': typeof ApiPublicHooksSyncAllRoute
@@ -191,6 +216,7 @@ export interface FileRoutesById {
   '/_authenticated': typeof AuthenticatedRouteRouteWithChildren
   '/auth': typeof AuthRoute
   '/_authenticated/ad-sets': typeof AuthenticatedAdSetsRoute
+  '/_authenticated/admin-approvals': typeof AuthenticatedAdminApprovalsRoute
   '/_authenticated/ads': typeof AuthenticatedAdsRoute
   '/_authenticated/alerts': typeof AuthenticatedAlertsRoute
   '/_authenticated/budget-tracker': typeof AuthenticatedBudgetTrackerRoute
@@ -199,12 +225,14 @@ export interface FileRoutesById {
   '/_authenticated/dashboard': typeof AuthenticatedDashboardRoute
   '/_authenticated/facebook-marketing-api': typeof AuthenticatedFacebookMarketingApiRoute
   '/_authenticated/insights': typeof AuthenticatedInsightsRoute
+  '/_authenticated/invoices': typeof AuthenticatedInvoicesRoute
   '/_authenticated/reports': typeof AuthenticatedReportsRoute
   '/_authenticated/settings': typeof AuthenticatedSettingsRoute
   '/_authenticated/sync-activity': typeof AuthenticatedSyncActivityRoute
   '/client/$code': typeof ClientCodeRoute
   '/portal/$slug': typeof PortalSlugRoute
   '/_authenticated/clients_/new': typeof AuthenticatedClientsNewRoute
+  '/_authenticated/invoices_/$id': typeof AuthenticatedInvoicesIdRoute
   '/_authenticated/clients_/$slug/report': typeof AuthenticatedClientsSlugReportRoute
   '/api/public/hooks/meta-webhook': typeof ApiPublicHooksMetaWebhookRoute
   '/api/public/hooks/sync-all': typeof ApiPublicHooksSyncAllRoute
@@ -215,6 +243,7 @@ export interface FileRouteTypes {
     | '/'
     | '/auth'
     | '/ad-sets'
+    | '/admin-approvals'
     | '/ads'
     | '/alerts'
     | '/budget-tracker'
@@ -223,12 +252,14 @@ export interface FileRouteTypes {
     | '/dashboard'
     | '/facebook-marketing-api'
     | '/insights'
+    | '/invoices'
     | '/reports'
     | '/settings'
     | '/sync-activity'
     | '/client/$code'
     | '/portal/$slug'
     | '/clients/new'
+    | '/invoices/$id'
     | '/clients/$slug/report'
     | '/api/public/hooks/meta-webhook'
     | '/api/public/hooks/sync-all'
@@ -237,6 +268,7 @@ export interface FileRouteTypes {
     | '/'
     | '/auth'
     | '/ad-sets'
+    | '/admin-approvals'
     | '/ads'
     | '/alerts'
     | '/budget-tracker'
@@ -245,12 +277,14 @@ export interface FileRouteTypes {
     | '/dashboard'
     | '/facebook-marketing-api'
     | '/insights'
+    | '/invoices'
     | '/reports'
     | '/settings'
     | '/sync-activity'
     | '/client/$code'
     | '/portal/$slug'
     | '/clients/new'
+    | '/invoices/$id'
     | '/clients/$slug/report'
     | '/api/public/hooks/meta-webhook'
     | '/api/public/hooks/sync-all'
@@ -260,6 +294,7 @@ export interface FileRouteTypes {
     | '/_authenticated'
     | '/auth'
     | '/_authenticated/ad-sets'
+    | '/_authenticated/admin-approvals'
     | '/_authenticated/ads'
     | '/_authenticated/alerts'
     | '/_authenticated/budget-tracker'
@@ -268,12 +303,14 @@ export interface FileRouteTypes {
     | '/_authenticated/dashboard'
     | '/_authenticated/facebook-marketing-api'
     | '/_authenticated/insights'
+    | '/_authenticated/invoices'
     | '/_authenticated/reports'
     | '/_authenticated/settings'
     | '/_authenticated/sync-activity'
     | '/client/$code'
     | '/portal/$slug'
     | '/_authenticated/clients_/new'
+    | '/_authenticated/invoices_/$id'
     | '/_authenticated/clients_/$slug/report'
     | '/api/public/hooks/meta-webhook'
     | '/api/public/hooks/sync-all'
@@ -347,6 +384,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedReportsRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
+    '/_authenticated/invoices': {
+      id: '/_authenticated/invoices'
+      path: '/invoices'
+      fullPath: '/invoices'
+      preLoaderRoute: typeof AuthenticatedInvoicesRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
     '/_authenticated/insights': {
       id: '/_authenticated/insights'
       path: '/insights'
@@ -403,11 +447,25 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedAdsRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
+    '/_authenticated/admin-approvals': {
+      id: '/_authenticated/admin-approvals'
+      path: '/admin-approvals'
+      fullPath: '/admin-approvals'
+      preLoaderRoute: typeof AuthenticatedAdminApprovalsRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
     '/_authenticated/ad-sets': {
       id: '/_authenticated/ad-sets'
       path: '/ad-sets'
       fullPath: '/ad-sets'
       preLoaderRoute: typeof AuthenticatedAdSetsRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/invoices_/$id': {
+      id: '/_authenticated/invoices_/$id'
+      path: '/invoices/$id'
+      fullPath: '/invoices/$id'
+      preLoaderRoute: typeof AuthenticatedInvoicesIdRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
     '/_authenticated/clients_/new': {
@@ -443,6 +501,7 @@ declare module '@tanstack/react-router' {
 
 interface AuthenticatedRouteRouteChildren {
   AuthenticatedAdSetsRoute: typeof AuthenticatedAdSetsRoute
+  AuthenticatedAdminApprovalsRoute: typeof AuthenticatedAdminApprovalsRoute
   AuthenticatedAdsRoute: typeof AuthenticatedAdsRoute
   AuthenticatedAlertsRoute: typeof AuthenticatedAlertsRoute
   AuthenticatedBudgetTrackerRoute: typeof AuthenticatedBudgetTrackerRoute
@@ -451,15 +510,18 @@ interface AuthenticatedRouteRouteChildren {
   AuthenticatedDashboardRoute: typeof AuthenticatedDashboardRoute
   AuthenticatedFacebookMarketingApiRoute: typeof AuthenticatedFacebookMarketingApiRoute
   AuthenticatedInsightsRoute: typeof AuthenticatedInsightsRoute
+  AuthenticatedInvoicesRoute: typeof AuthenticatedInvoicesRoute
   AuthenticatedReportsRoute: typeof AuthenticatedReportsRoute
   AuthenticatedSettingsRoute: typeof AuthenticatedSettingsRoute
   AuthenticatedSyncActivityRoute: typeof AuthenticatedSyncActivityRoute
   AuthenticatedClientsNewRoute: typeof AuthenticatedClientsNewRoute
+  AuthenticatedInvoicesIdRoute: typeof AuthenticatedInvoicesIdRoute
   AuthenticatedClientsSlugReportRoute: typeof AuthenticatedClientsSlugReportRoute
 }
 
 const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedAdSetsRoute: AuthenticatedAdSetsRoute,
+  AuthenticatedAdminApprovalsRoute: AuthenticatedAdminApprovalsRoute,
   AuthenticatedAdsRoute: AuthenticatedAdsRoute,
   AuthenticatedAlertsRoute: AuthenticatedAlertsRoute,
   AuthenticatedBudgetTrackerRoute: AuthenticatedBudgetTrackerRoute,
@@ -469,10 +531,12 @@ const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedFacebookMarketingApiRoute:
     AuthenticatedFacebookMarketingApiRoute,
   AuthenticatedInsightsRoute: AuthenticatedInsightsRoute,
+  AuthenticatedInvoicesRoute: AuthenticatedInvoicesRoute,
   AuthenticatedReportsRoute: AuthenticatedReportsRoute,
   AuthenticatedSettingsRoute: AuthenticatedSettingsRoute,
   AuthenticatedSyncActivityRoute: AuthenticatedSyncActivityRoute,
   AuthenticatedClientsNewRoute: AuthenticatedClientsNewRoute,
+  AuthenticatedInvoicesIdRoute: AuthenticatedInvoicesIdRoute,
   AuthenticatedClientsSlugReportRoute: AuthenticatedClientsSlugReportRoute,
 }
 
