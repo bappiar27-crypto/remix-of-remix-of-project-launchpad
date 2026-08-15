@@ -217,66 +217,73 @@ export async function syncAdAccount(adAccountId: string) {
     await supabaseAdmin.from("ad_sets").update(zeroMetrics).eq("ad_account_id", account.id);
     await supabaseAdmin.from("ads").update(zeroMetrics).eq("ad_account_id", account.id);
 
+    // FIX: these used to be N individual `.update()` calls in a loop — each one
+    // is a separate Supabase (Cloudflare Worker) subrequest. With 50+ campaigns/
+    // adsets/ads that alone could blow through the Worker's per-invocation
+    // subrequest limit ("Too many subrequests by single Worker invocation").
+    // Batched into a single upsert per level instead (1 request instead of N).
     if (campInsights.length > 0) {
-      for (const row of campInsights as any[]) {
-        await supabaseAdmin
-          .from("campaigns")
-          .update({
-            spend: Number(row.spend) || 0,
-            reach: Number(row.reach) || 0,
-            impressions: Number(row.impressions) || 0,
-            clicks: Number(row.clicks) || 0,
-            ctr: Number(row.ctr) || 0,
-            cpc: Number(row.cpc) || 0,
-            cpm: Number(row.cpm) || 0,
-            frequency: Number(row.frequency) || 0,
-            results: extractPrimaryResults(row.actions, row.optimization_goal),
-          })
-          .eq("fb_campaign_id", row.campaign_id)
-          .eq("ad_account_id", account.id);
-      }
+      const rows = (campInsights as any[]).map((row) => ({
+        fb_campaign_id: row.campaign_id,
+        ad_account_id: account.id,
+        spend: Number(row.spend) || 0,
+        reach: Number(row.reach) || 0,
+        impressions: Number(row.impressions) || 0,
+        clicks: Number(row.clicks) || 0,
+        ctr: Number(row.ctr) || 0,
+        cpc: Number(row.cpc) || 0,
+        cpm: Number(row.cpm) || 0,
+        frequency: Number(row.frequency) || 0,
+        results: extractPrimaryResults(row.actions, row.optimization_goal),
+      }));
+      const { error: eCampIns } = await supabaseAdmin
+        .from("campaigns")
+        .upsert(rows, { onConflict: "fb_campaign_id" });
+      if (eCampIns) throw new Error(`campaign insights upsert: ${eCampIns.message}`);
     }
     if (asInsights.length > 0) {
-      for (const row of asInsights as any[]) {
-        await supabaseAdmin
-          .from("ad_sets")
-          .update({
-            spend: Number(row.spend) || 0,
-            reach: Number(row.reach) || 0,
-            impressions: Number(row.impressions) || 0,
-            clicks: Number(row.clicks) || 0,
-            ctr: Number(row.ctr) || 0,
-            cpc: Number(row.cpc) || 0,
-            cpm: Number(row.cpm) || 0,
-            frequency: Number(row.frequency) || 0,
-            results: extractPrimaryResults(
-              row.actions,
-              row.optimization_goal ?? adSetGoalByFbId.get(row.adset_id),
-            ),
-          })
-          .eq("fb_adset_id", row.adset_id)
-          .eq("ad_account_id", account.id);
-      }
+      const rows = (asInsights as any[]).map((row) => ({
+        fb_adset_id: row.adset_id,
+        ad_account_id: account.id,
+        spend: Number(row.spend) || 0,
+        reach: Number(row.reach) || 0,
+        impressions: Number(row.impressions) || 0,
+        clicks: Number(row.clicks) || 0,
+        ctr: Number(row.ctr) || 0,
+        cpc: Number(row.cpc) || 0,
+        cpm: Number(row.cpm) || 0,
+        frequency: Number(row.frequency) || 0,
+        results: extractPrimaryResults(
+          row.actions,
+          row.optimization_goal ?? adSetGoalByFbId.get(row.adset_id),
+        ),
+      }));
+      const { error: eAsIns } = await supabaseAdmin
+        .from("ad_sets")
+        .upsert(rows, { onConflict: "fb_adset_id" });
+      if (eAsIns) throw new Error(`ad set insights upsert: ${eAsIns.message}`);
     }
     if (adInsights.length > 0) {
-      for (const row of adInsights as any[]) {
+      const rows = (adInsights as any[]).map((row) => {
         const goal = row.optimization_goal ?? adSetGoalByFbId.get(row.adset_id);
-        await supabaseAdmin
-          .from("ads")
-          .update({
-            spend: Number(row.spend) || 0,
-            reach: Number(row.reach) || 0,
-            impressions: Number(row.impressions) || 0,
-            clicks: Number(row.clicks) || 0,
-            ctr: Number(row.ctr) || 0,
-            cpc: Number(row.cpc) || 0,
-            cpm: Number(row.cpm) || 0,
-            frequency: Number(row.frequency) || 0,
-            results: extractPrimaryResults(row.actions, goal),
-          })
-          .eq("fb_ad_id", row.ad_id)
-          .eq("ad_account_id", account.id);
-      }
+        return {
+          fb_ad_id: row.ad_id,
+          ad_account_id: account.id,
+          spend: Number(row.spend) || 0,
+          reach: Number(row.reach) || 0,
+          impressions: Number(row.impressions) || 0,
+          clicks: Number(row.clicks) || 0,
+          ctr: Number(row.ctr) || 0,
+          cpc: Number(row.cpc) || 0,
+          cpm: Number(row.cpm) || 0,
+          frequency: Number(row.frequency) || 0,
+          results: extractPrimaryResults(row.actions, goal),
+        };
+      });
+      const { error: eAdIns } = await supabaseAdmin
+        .from("ads")
+        .upsert(rows, { onConflict: "fb_ad_id" });
+      if (eAdIns) throw new Error(`ad insights upsert: ${eAdIns.message}`);
     }
 
     const snapshotSince = new Date();
@@ -420,14 +427,32 @@ export async function syncAdAccount(adAccountId: string) {
         cur.reach = Math.max(cur.reach, Number(r.reach) || 0);
         agg.set(id, cur);
       }
-      for (const [fbAdsetId, v] of agg) {
-        const ctr = v.impressions > 0 ? (v.clicks / v.impressions) * 100 : 0;
-        const cpc = v.clicks > 0 ? v.spend / v.clicks : 0;
-        const cpm = v.impressions > 0 ? (v.spend / v.impressions) * 1000 : 0;
-        const frequency = v.reach > 0 ? v.impressions / v.reach : 0;
-        await supabaseAdmin
-          .from("ad_sets")
-          .update({
+      // FIX: this was N conditional `.update()` calls (one per ad set) inside a
+      // loop — another big subrequest contributor. We only need this fallback
+      // for ad sets that are STILL all-zero after the primary insights update
+      // above, so fetch current zero-valued ad sets once, then apply the
+      // fallback in a single batched upsert instead of one call per row.
+      const { data: zeroAdSets } = await supabaseAdmin
+        .from("ad_sets")
+        .select("fb_adset_id")
+        .eq("ad_account_id", account.id)
+        .eq("spend", 0)
+        .eq("reach", 0)
+        .eq("impressions", 0)
+        .eq("clicks", 0)
+        .eq("results", 0);
+      const zeroIds = new Set((zeroAdSets ?? []).map((r) => r.fb_adset_id));
+
+      const fallbackRows = [...agg]
+        .filter(([fbAdsetId]) => zeroIds.has(fbAdsetId))
+        .map(([fbAdsetId, v]) => {
+          const ctr = v.impressions > 0 ? (v.clicks / v.impressions) * 100 : 0;
+          const cpc = v.clicks > 0 ? v.spend / v.clicks : 0;
+          const cpm = v.impressions > 0 ? (v.spend / v.impressions) * 1000 : 0;
+          const frequency = v.reach > 0 ? v.impressions / v.reach : 0;
+          return {
+            fb_adset_id: fbAdsetId,
+            ad_account_id: account.id,
             spend: v.spend,
             reach: v.reach,
             impressions: v.impressions,
@@ -437,14 +462,13 @@ export async function syncAdAccount(adAccountId: string) {
             cpm,
             frequency,
             results: v.results,
-          })
-          .eq("fb_adset_id", fbAdsetId)
-          .eq("ad_account_id", account.id)
-          .eq("spend", 0)
-          .eq("reach", 0)
-          .eq("impressions", 0)
-          .eq("clicks", 0)
-          .eq("results", 0);
+          };
+        });
+      if (fallbackRows.length > 0) {
+        const { error: eFallback } = await supabaseAdmin
+          .from("ad_sets")
+          .upsert(fallbackRows, { onConflict: "fb_adset_id" });
+        if (eFallback) throw new Error(`ad set fallback upsert: ${eFallback.message}`);
       }
     }
 
@@ -513,6 +537,23 @@ export async function syncAdAccount(adAccountId: string) {
   return { ok: !error, itemsSynced, error, duration_ms: duration };
 }
 
+// FIX: circuit breaker for Facebook rate limits.
+// The cron used to re-hit an already-rate-limited account every single run
+// (previously every minute), which never lets Facebook's rolling rate-limit
+// score recover — so the account got stuck permanently failing ("[FB 17]
+// User request limit reached"). We now skip an account for a cooldown
+// window after a rate-limit-type failure instead of retrying immediately.
+const RATE_LIMIT_COOLDOWN_MS = 15 * 60 * 1000; // 15 minutes
+// FB error codes that mean "you're calling too fast / too much", not a real
+// data problem: 4 = app-level rate limit, 17 = user request limit, 32 = page
+// request limit, 613 = custom rate limit / ad account throttling.
+const FB_RATE_LIMIT_CODES = ["4", "17", "32", "613"];
+function isFbRateLimitError(message: string | null | undefined): boolean {
+  if (!message) return false;
+  const m = /^\[FB (\d+)\]/.exec(message);
+  return !!m && FB_RATE_LIMIT_CODES.includes(m[1]);
+}
+
 export async function syncAllAccounts() {
   const health = await checkTokenHealth();
   const legacyToken = await getLegacyToken();
@@ -541,7 +582,7 @@ export async function syncAllAccounts() {
 
   const { data: accounts } = await supabaseAdmin
     .from("ad_accounts")
-    .select("id,client_id,account_name,fb_account_id")
+    .select("id,client_id,account_name,fb_account_id,last_sync_at,last_sync_status,last_sync_error")
     .eq("is_active", true);
   const results: Array<{
     id: string;
@@ -549,7 +590,23 @@ export async function syncAllAccounts() {
     error?: string | null;
     account_name?: string | null;
   }> = [];
-  for (const a of accounts ?? []) {
+  for (const a of (accounts ?? []) as any[]) {
+    if (
+      a.last_sync_status === "failed" &&
+      isFbRateLimitError(a.last_sync_error) &&
+      a.last_sync_at &&
+      Date.now() - new Date(a.last_sync_at).getTime() < RATE_LIMIT_COOLDOWN_MS
+    ) {
+      results.push({
+        id: a.id,
+        ok: false,
+        error: `skipped — cooling down after Facebook rate limit (retries again after ${new Date(
+          new Date(a.last_sync_at).getTime() + RATE_LIMIT_COOLDOWN_MS,
+        ).toISOString()})`,
+        account_name: a.account_name,
+      });
+      continue;
+    }
     try {
       const r = await syncAdAccount(a.id);
       results.push({ id: a.id, ok: r.ok, error: r.error, account_name: a.account_name });
