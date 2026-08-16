@@ -467,8 +467,8 @@ function ConnectionCard({ c, onEdit }: { c: Conn; onEdit: () => void }) {
           {busy === "match" || !matchResult ? (
             <div className="text-xs text-muted-foreground">Comparing…</div>
           ) : (
-            <div className="space-y-1">
-              <div className="grid grid-cols-12 text-[10px] uppercase text-muted-foreground border-b border-border pb-1">
+            <div className="space-y-1 overflow-x-auto">
+              <div className="grid grid-cols-12 text-[10px] uppercase text-muted-foreground border-b border-border pb-1 min-w-[420px]">
                 <div className="col-span-5">Account</div>
                 <div className="col-span-2 text-right">Live spend</div>
                 <div className="col-span-2 text-right">DB spend</div>
@@ -478,7 +478,7 @@ function ConnectionCard({ c, onEdit }: { c: Conn; onEdit: () => void }) {
               {matchResult.results.map((r: any) => (
                 <div
                   key={r.ad_account_id}
-                  className="grid grid-cols-12 text-xs py-1 border-b border-border/30 last:border-0 items-center"
+                  className="grid grid-cols-12 text-xs py-1 border-b border-border/30 last:border-0 items-center min-w-[420px]"
                 >
                   <div className="col-span-5 truncate">{r.account_name ?? r.fb_account_id}</div>
                   <div className="col-span-2 text-right font-mono">

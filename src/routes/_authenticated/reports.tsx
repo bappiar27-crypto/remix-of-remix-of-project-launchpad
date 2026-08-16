@@ -84,18 +84,18 @@ function ReportsPage() {
                 <div className="text-xs text-muted-foreground">
                   {c.ad_accounts?.length ?? 0} ad account{c.ad_accounts?.length !== 1 ? "s" : ""}
                 </div>
-                <div className="grid grid-cols-3 gap-3 mt-4">
-                  <div className="rounded-lg bg-surface/60 p-3">
+                <div className="grid grid-cols-3 gap-2 sm:gap-3 mt-4">
+                  <div className="rounded-lg bg-surface/60 p-2 sm:p-3 min-w-0">
                     <div className="text-[10px] text-muted-foreground uppercase">Spend</div>
-                    <div className="font-bold">${totals.spend.toFixed(2)}</div>
+                    <div className="font-bold text-sm sm:text-base truncate">${totals.spend.toFixed(2)}</div>
                   </div>
-                  <div className="rounded-lg bg-surface/60 p-3">
+                  <div className="rounded-lg bg-surface/60 p-2 sm:p-3 min-w-0">
                     <div className="text-[10px] text-muted-foreground uppercase">Reach</div>
-                    <div className="font-bold">{totals.reach.toLocaleString()}</div>
+                    <div className="font-bold text-sm sm:text-base truncate">{totals.reach.toLocaleString()}</div>
                   </div>
-                  <div className="rounded-lg bg-surface/60 p-3">
+                  <div className="rounded-lg bg-surface/60 p-2 sm:p-3 min-w-0">
                     <div className="text-[10px] text-muted-foreground uppercase">Results</div>
-                    <div className="font-bold text-primary">{totals.results.toLocaleString()}</div>
+                    <div className="font-bold text-primary text-sm sm:text-base truncate">{totals.results.toLocaleString()}</div>
                   </div>
                 </div>
               </div>

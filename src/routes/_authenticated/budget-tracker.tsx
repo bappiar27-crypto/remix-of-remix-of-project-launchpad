@@ -176,12 +176,12 @@ function Tile({
   const color =
     accent === "destructive" ? "text-destructive" : accent === "success" ? "text-success" : "";
   return (
-    <div className="rounded-lg bg-surface/60 border border-border px-2 py-2">
-      <div className="text-[10px] uppercase tracking-wider text-muted-foreground flex items-center justify-center gap-1">
+    <div className="rounded-lg bg-surface/60 border border-border px-1.5 sm:px-2 py-2 min-w-0">
+      <div className="text-[9px] sm:text-[10px] uppercase tracking-wider text-muted-foreground flex items-center justify-center gap-1 text-center">
         {icon}
-        {label}
+        <span className="truncate">{label}</span>
       </div>
-      <div className={`text-sm font-bold mt-0.5 ${color}`}>{value}</div>
+      <div className={`text-xs sm:text-sm font-bold mt-0.5 text-center break-words ${color}`}>{value}</div>
     </div>
   );
 }

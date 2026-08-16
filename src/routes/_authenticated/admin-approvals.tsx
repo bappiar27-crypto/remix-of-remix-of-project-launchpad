@@ -129,6 +129,7 @@ function ApprovalsPage() {
             No users in this view.
           </div>
         ) : (
+          <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead className="bg-surface-elevated text-xs uppercase tracking-wider text-muted-foreground">
               <tr>
@@ -176,6 +177,7 @@ function ApprovalsPage() {
               ))}
             </tbody>
           </table>
+          </div>
         )}
       </div>
 
@@ -216,6 +218,7 @@ function BlockedIpsPanel() {
         ) : rows.length === 0 ? (
           <div className="p-8 text-center text-sm text-muted-foreground">No login attempts recorded.</div>
         ) : (
+          <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead className="bg-surface-elevated text-xs uppercase tracking-wider text-muted-foreground">
               <tr>
@@ -260,6 +263,7 @@ function BlockedIpsPanel() {
               ))}
             </tbody>
           </table>
+          </div>
         )}
       </div>
     </div>

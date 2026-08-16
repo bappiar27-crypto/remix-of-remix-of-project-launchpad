@@ -57,7 +57,7 @@ function InvoicesPage() {
 
   return (
     <div className="space-y-5">
-      <div className="flex items-center justify-between gap-3">
+      <div className="flex items-center justify-between gap-3 flex-wrap">
         <div>
           <h1 className="text-2xl font-bold">Invoices</h1>
           <p className="text-muted-foreground text-sm">
@@ -86,6 +86,7 @@ function InvoicesPage() {
             </div>
           </div>
         ) : (
+          <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead className="bg-muted/40 text-left text-xs uppercase text-muted-foreground">
               <tr>
@@ -162,6 +163,7 @@ function InvoicesPage() {
               })}
             </tbody>
           </table>
+          </div>
         )}
       </div>
 

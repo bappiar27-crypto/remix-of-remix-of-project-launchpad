@@ -308,8 +308,18 @@
   * {
     border-color: var(--color-border);
   }
+  html {
+    /* Prevent iOS/Android from auto-zooming on input focus and keep
+       layout stable across phone / tablet / desktop breakpoints. */
+    -webkit-text-size-adjust: 100%;
+    text-size-adjust: 100%;
+  }
   html,
   body {
+    /* Safety net: nothing on the site should ever cause horizontal
+       scrolling on mobile/tablet, even if a component overflows. */
+    max-width: 100%;
+    overflow-x: hidden;
     background-color: var(--color-background);
     color: var(--color-foreground);
     font-family: var(--font-body);
@@ -412,6 +422,17 @@
 
   .input {
     @apply w-full rounded-lg bg-input border border-border px-3 py-2.5 text-sm outline-none transition focus:ring-2 focus:ring-primary/40;
+  }
+}
+
+/* Mobile-only: force form fields to 16px so iOS/Android don't
+   auto-zoom the viewport on focus. Desktop/tablet keep the
+   smaller Tailwind text-sm sizing untouched. */
+@media (max-width: 640px) {
+  input,
+  select,
+  textarea {
+    font-size: 16px;
   }
 }
 

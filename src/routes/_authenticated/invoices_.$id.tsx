@@ -124,8 +124,13 @@ function InvoiceView() {
         </div>
       </div>
 
-      <div id="invoice-print-area" ref={sheetRef}>
-        <InvoiceDocument inv={data as any} generatedBy={me || undefined} />
+      {/* On phones/tablets the invoice sheet keeps its print-accurate fixed
+          width internally, so it scrolls horizontally inside this box
+          instead of breaking the page layout. */}
+      <div className="overflow-x-auto print:overflow-visible -mx-4 px-4 sm:mx-0 sm:px-0">
+        <div id="invoice-print-area" ref={sheetRef}>
+          <InvoiceDocument inv={data as any} generatedBy={me || undefined} />
+        </div>
       </div>
     </div>
   );
