@@ -5,10 +5,12 @@ import { useState, useEffect, useMemo, useRef } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import {
   syncAllAccountsNow,
+  syncOneAccount,
   getSettingsPublic,
   retestAndReimport,
   refreshAllData,
 } from "@/lib/fb/admin.functions";
+import { runFullSync, summarizeSync } from "@/lib/sync-runner";
 import { toast } from "sonner";
 import {
   DollarSign,
@@ -43,6 +45,7 @@ function Dashboard() {
   const qc = useQueryClient();
   const getSettings = useServerFn(getSettingsPublic);
   const syncFn = useServerFn(syncAllAccountsNow);
+  const syncOneFn = useServerFn(syncOneAccount);
   const retestFn = useServerFn(retestAndReimport);
   const refreshFn = useServerFn(refreshAllData);
 
@@ -53,6 +56,8 @@ function Dashboard() {
   const [datePreset] = useState("Last 7 days");
   const [, setAutoSyncErrors] = useState(0);
   const [showRefreshConfirm, setShowRefreshConfirm] = useState(false);
+  // Sequential per-account sync progress (see src/lib/sync-runner.ts).
+  const [syncProgress, setSyncProgress] = useState<{ done: number; total: number } | null>(null);
 
   // ✅ Fix #2: ref দিয়ে syncing track — dependency array pollution নেই
   const syncingRef = useRef(false);
@@ -276,8 +281,14 @@ function Dashboard() {
     setSyncing(true);
     syncingRef.current = true;
     try {
-      // ✅ Fix ts(2322): data: undefined
-      const res = await syncFn({ data: undefined });
+      // FIX (Cloudflare "Too many subrequests by single Worker invocation"):
+      // sync accounts one server request at a time instead of asking the
+      // server to loop over every account inside a single invocation.
+      const res = await runFullSync({
+        syncAllFn: syncFn as any,
+        syncOneFn: syncOneFn as any,
+        onProgress: (done, total) => setSyncProgress({ done, total }),
+      });
       if (res.skipped) {
         toast.error(res.tokenHealth?.error ?? "Token check failed.");
       } else {
@@ -288,14 +299,10 @@ function Dashboard() {
         // ✅ Surface per-account failures instead of always showing success.
         // Without this, the dashboard reads "Synced N accounts" even when
         // every per-account sync failed → KPIs stay at $0 forever.
-        const results = (res as any).results ?? [];
-        const failed = results.filter((r: any) => r && r.ok === false);
-        const okCount = results.length - failed.length;
+        const { total, okCount, failed, firstError } = summarizeSync(res.results);
         if (failed.length > 0) {
-          const first = failed[0];
           toast.error(
-            `${failed.length}/${results.length} account(s) failed to sync. ` +
-              `First error on "${first.account_name ?? first.id}": ${first.error ?? "unknown"}`,
+            `${failed.length}/${total} account(s) failed to sync. First error on ${firstError}`,
             { duration: 8000 },
           );
         } else {
@@ -307,6 +314,7 @@ function Dashboard() {
       toast.error(e?.message ?? "Sync failed");
     } finally {
       setSyncing(false);
+      setSyncProgress(null);
       syncingRef.current = false;
     }
   };
@@ -331,9 +339,25 @@ function Dashboard() {
     setShowRefreshConfirm(false);
     setRefreshingAll(true);
     try {
-      // ✅ Fix ts(2322): data: undefined
-      const r = await refreshFn({ data: undefined });
-      toast.success(`Cleared cache · synced ${r.count ?? 0} accounts`);
+      // Clearing + first account happens server-side; the remaining accounts
+      // are synced one request each so we stay under the subrequest limit.
+      const r: any = await refreshFn({ data: undefined });
+      const results = [...((r?.results ?? []) as any[])];
+      for (const acc of (r?.pending ?? []) as Array<{ id: string; account_name?: string | null }>) {
+        setSyncProgress({ done: results.length, total: results.length + 1 });
+        try {
+          const one: any = await syncOneFn({ data: { id: acc.id } });
+          results.push({ id: acc.id, ok: !!one?.ok, error: one?.error ?? null, account_name: acc.account_name });
+        } catch (err: any) {
+          results.push({ id: acc.id, ok: false, error: err?.message ?? "sync failed", account_name: acc.account_name });
+        }
+      }
+      const { okCount, failed, firstError } = summarizeSync(results as any);
+      if (failed.length > 0) {
+        toast.error(`Cleared cache · ${failed.length} failed — ${firstError}`, { duration: 10000 });
+      } else {
+        toast.success(`Cleared cache · synced ${okCount} accounts`);
+      }
       qc.invalidateQueries({ queryKey: ["dashboard-accounts"] });
       qc.invalidateQueries({ queryKey: ["dashboard-timeseries"] });
       qc.invalidateQueries({ queryKey: ["dashboard-logs"] });
@@ -342,6 +366,7 @@ function Dashboard() {
       toast.error(e?.message ?? "Refresh failed");
     } finally {
       setRefreshingAll(false);
+      setSyncProgress(null);
     }
   };
 
@@ -391,7 +416,9 @@ function Dashboard() {
                 ) : (
                   <RefreshCw className="size-4" />
                 )}
-                Sync All Accounts
+                {syncProgress
+                  ? `Syncing ${syncProgress.done}/${syncProgress.total}`
+                  : "Sync All Accounts"}
               </button>
               <button
                 onClick={onRetest}

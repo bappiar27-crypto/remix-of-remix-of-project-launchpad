@@ -733,13 +733,37 @@ export const disconnectAdAccount = createServerFn({ method: "POST" })
   });
 
 // ============ Manual sync ============
+// One invocation syncs a capped number of accounts (default 1) and returns the
+// still-pending accounts, so the caller can keep going with one request per
+// account. This is what keeps us under Cloudflare's per-invocation subrequest
+// limit ("Too many subrequests by single Worker invocation").
 export const syncAllAccountsNow = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .handler(async ({ context }) => {
+  .inputValidator((d: { maxAccounts?: number } | undefined) =>
+    z
+      .object({ maxAccounts: z.number().int().min(1).max(3).optional() })
+      .optional()
+      .parse(d ?? undefined),
+  )
+  .handler(async ({ data, context }) => {
     await requireAdmin(context.userId);
     const { syncAllAccounts } = await import("./sync.server");
-    const res = await syncAllAccounts();
+    const res = await syncAllAccounts({ maxAccounts: data?.maxAccounts });
     return res;
+  });
+
+// Accounts the UI should walk through one-by-one after syncAllAccountsNow().
+export const listSyncTargets = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ context }) => {
+    const supabaseAdmin = await requireAdmin(context.userId);
+    const { data, error } = await supabaseAdmin
+      .from("ad_accounts")
+      .select("id,account_name,fb_account_id")
+      .eq("is_active", true)
+      .order("last_sync_at", { ascending: true, nullsFirst: true });
+    if (error) throw new Error(error.message);
+    return data ?? [];
   });
 
 export const syncOneAccount = createServerFn({ method: "POST" })
@@ -773,8 +797,10 @@ export const refreshAllData = createServerFn({ method: "POST" })
         last_sync_at: null,
       })
       .not("id", "is", null);
+    // Only the first account is synced inside this invocation — the caller
+    // continues with the returned `pending` list, one request per account.
     const { syncAllAccounts } = await import("./sync.server");
-    const res = await syncAllAccounts();
+    const res = await syncAllAccounts({ maxAccounts: 1 });
     return { cleared: true, ...res };
   });
 
@@ -785,6 +811,16 @@ export const retestAndReimport = createServerFn({ method: "POST" })
     const supabaseAdmin = await requireAdmin(context.userId);
     const { fb } = await import("./api.server");
     const { syncAdAccount } = await import("./sync.server");
+
+    // FIX (Cloudflare "Too many subrequests by single Worker invocation"):
+    // this handler used to sync EVERY imported ad account inside the same
+    // Worker invocation. Import itself is cheap, a full account sync is not
+    // (~25-30 subrequests each), so re-import blew the limit and reported
+    // failures for accounts that were imported fine. We now sync at most
+    // RETEST_SYNC_BUDGET account(s) here and leave the rest to the normal
+    // rotating sync (UI/cron), which processes one account per request.
+    const RETEST_SYNC_BUDGET = 1;
+    let retestSyncBudget = RETEST_SYNC_BUDGET;
 
     const { data: connections } = await (supabaseAdmin as any)
       .from("meta_connections")
@@ -799,6 +835,7 @@ export const retestAndReimport = createServerFn({ method: "POST" })
       ok: boolean;
       error?: string | null;
       itemsSynced?: number;
+      queued?: boolean;
     }> = [];
 
     for (const conn of connections ?? []) {
@@ -859,6 +896,18 @@ export const retestAndReimport = createServerFn({ method: "POST" })
         connImported += imported?.length ?? 0;
 
         for (const a of imported ?? []) {
+          if (retestSyncBudget <= 0) {
+            connSyncResults.push({
+              id: a.id,
+              fb_account_id: a.fb_account_id,
+              account_name: a.account_name,
+              ok: true,
+              error: null,
+              queued: true,
+            });
+            continue;
+          }
+          retestSyncBudget -= 1;
           try {
             const r = await syncAdAccount(a.id);
             connSyncResults.push({
@@ -952,6 +1001,7 @@ export const retestAndReimport = createServerFn({ method: "POST" })
       ok: boolean;
       error?: string | null;
       itemsSynced?: number;
+      queued?: boolean;
     }> = [];
 
     if (accounts.length > 0 && clientId) {
@@ -972,6 +1022,18 @@ export const retestAndReimport = createServerFn({ method: "POST" })
       if (error) throw new Error(error.message);
 
       for (const a of imported ?? []) {
+        if (retestSyncBudget <= 0) {
+          legacySyncResults.push({
+            id: a.id,
+            fb_account_id: a.fb_account_id,
+            account_name: a.account_name,
+            ok: true,
+            error: null,
+            queued: true,
+          });
+          continue;
+        }
+        retestSyncBudget -= 1;
         try {
           const r = await syncAdAccount(a.id);
           legacySyncResults.push({

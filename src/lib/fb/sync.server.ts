@@ -121,15 +121,24 @@ export async function syncAdAccount(adAccountId: string) {
       itemsSynced += campaigns.length;
     }
 
+    // FIX (Cloudflare "Too many subrequests"): the campaign id map used to be
+    // re-read for the ad sets phase AND again for the ads phase. It is read
+    // once now and reused, cutting two PostgREST requests per sync.
+    let cpMap = new Map<string, string>();
+    const loadCampaignMap = async () => {
+      const { data: cps, error } = await supabaseAdmin
+        .from("campaigns")
+        .select("id,fb_campaign_id")
+        .eq("ad_account_id", account.id);
+      if (error) throw new Error(`campaign id map: ${error.message}`);
+      cpMap = new Map((cps ?? []).map((c) => [c.fb_campaign_id, c.id]));
+    };
+
     // Capture optimization_goal per ad set so we can map "Results" correctly.
     const adSets = await fb.listAdSets(actId, token);
     const adSetGoalByFbId = new Map<string, string>();
     if (adSets.length > 0) {
-      const { data: cps } = await supabaseAdmin
-        .from("campaigns")
-        .select("id,fb_campaign_id")
-        .eq("ad_account_id", account.id);
-      const cpMap = new Map((cps ?? []).map((c) => [c.fb_campaign_id, c.id]));
+      await loadCampaignMap();
       const rows = adSets
         .filter((a: any) => cpMap.has(a.campaign_id))
         .map((a: any) => {
@@ -162,15 +171,12 @@ export async function syncAdAccount(adAccountId: string) {
 
     const ads = await fb.listAds(actId, token);
     if (ads.length > 0) {
-      const { data: cps } = await supabaseAdmin
-        .from("campaigns")
-        .select("id,fb_campaign_id")
-        .eq("ad_account_id", account.id);
-      const { data: aset } = await supabaseAdmin
+      if (cpMap.size === 0) await loadCampaignMap();
+      const { data: aset, error: eAsetMap } = await supabaseAdmin
         .from("ad_sets")
         .select("id,fb_adset_id")
         .eq("ad_account_id", account.id);
-      const cpMap = new Map((cps ?? []).map((c) => [c.fb_campaign_id, c.id]));
+      if (eAsetMap) throw new Error(`ad set id map: ${eAsetMap.message}`);
       const asMap = new Map((aset ?? []).map((a) => [a.fb_adset_id, a.id]));
       const rows = ads
         .filter((a: any) => cpMap.has(a.campaign_id) && asMap.has(a.adset_id))
@@ -195,79 +201,38 @@ export async function syncAdAccount(adAccountId: string) {
       itemsSynced += rows.length;
     }
 
+
     // Entity tables show MAXIMUM range to match Ads Manager's default.
     const acctInsights = await fb.getAccountInsights(actId, token, "maximum");
     const campInsights = await fb.getInsights(actId, token, "maximum", "campaign");
     const asInsights = await fb.getInsights(actId, token, "maximum", "adset");
     const adInsights = await fb.getInsights(actId, token, "maximum", "ad");
 
-    // FIX: Facebook's insights endpoint can return rows for campaigns/ad sets/
-    // ads that no longer exist in our `campaigns`/`ad_sets`/`ads` tables (e.g.
-    // deleted on Facebook but still inside the "maximum" lookback window).
-    // Upserting such a row INSERTs a brand-new record with only fb id +
-    // metrics, which violates the NOT NULL columns (name, campaign_id, ...) —
-    // the "null value in column \"name\" of relation \"campaigns\"" error.
+    // ================= INSIGHT METRICS (UPDATE-ONLY) =================
+    // ROOT CAUSE of `campaign insights upsert: null value in column "name" of
+    // relation "campaigns" violates not-null constraint`:
+    // Facebook's insights endpoint returns rows for campaigns / ad sets / ads
+    // that do NOT exist in our tables (deleted on Facebook but still inside
+    // the "maximum" lookback window, or owned by a different ad account).
+    // A PostgREST `upsert` on such a row degrades into an INSERT carrying only
+    // the Facebook id + metrics → NOT NULL violation → the whole sync failed.
     //
-    // Two hardenings vs. before:
-    //  1) the "known ids" reads are PAGINATED — PostgREST caps a select at
-    //     1000 rows, so accounts with >1000 entities used to treat everything
-    //     past row 1000 as unknown-but-then-still-upsert, causing the INSERT.
-    //  2) the upsert payload now carries the existing NOT NULL columns, so
-    //     even if a row slips through, the INSERT can never be null-violating.
-    const PAGE = 1000;
-    async function selectAllRows<T>(
-      table: "campaigns" | "ad_sets" | "ads",
-      columns: string,
-    ): Promise<T[]> {
-      const out: T[] = [];
-      for (let from = 0; ; from += PAGE) {
-        const { data, error } = await supabaseAdmin
-          .from(table)
-          .select(columns)
-          .eq("ad_account_id", account.id)
-          .range(from, from + PAGE - 1);
-        if (error) throw new Error(`${table} known-ids read: ${error.message}`);
-        const page = (data ?? []) as unknown as T[];
-        out.push(...page);
-        if (page.length < PAGE) break;
-      }
-      return out;
+    // FIX: metrics now go through the SQL functions apply_campaign_metrics /
+    // apply_ad_set_metrics / apply_ad_metrics (migration
+    // 20260817001000_apply_insight_metrics.sql). They are set-based UPDATEs,
+    // so an unknown Facebook id matches nothing and is silently ignored —
+    // an INSERT (and therefore this error) is impossible. Bonus: no paginated
+    // "known ids" reads are needed anymore, which removes several Worker
+    // subrequests per sync.
+
+    // Reset metrics first so entities that fell out of range don't keep stale
+    // numbers — one RPC instead of three PostgREST UPDATE requests.
+    {
+      const { error: eReset } = await (supabaseAdmin as any).rpc("reset_account_metrics", {
+        _ad_account_id: account.id,
+      });
+      if (eReset) throw new Error(`reset metrics: ${eReset.message}`);
     }
-
-    const [knownCampaignRows, knownAdSetRows, knownAdRows] = await Promise.all([
-      selectAllRows<{ fb_campaign_id: string; name: string }>(
-        "campaigns",
-        "fb_campaign_id,name",
-      ),
-      selectAllRows<{ fb_adset_id: string; name: string; campaign_id: string }>(
-        "ad_sets",
-        "fb_adset_id,name,campaign_id",
-      ),
-      selectAllRows<{ fb_ad_id: string; name: string; ad_set_id: string; campaign_id: string }>(
-        "ads",
-        "fb_ad_id,name,ad_set_id,campaign_id",
-      ),
-    ]);
-
-    const knownCampaignById = new Map(knownCampaignRows.map((r) => [r.fb_campaign_id, r]));
-    const knownAdSetById = new Map(knownAdSetRows.map((r) => [r.fb_adset_id, r]));
-    const knownAdById = new Map(knownAdRows.map((r) => [r.fb_ad_id, r]));
-
-    // Reset metrics first so entities that fell out of range don't keep stale numbers.
-    const zeroMetrics = {
-      spend: 0,
-      reach: 0,
-      impressions: 0,
-      clicks: 0,
-      ctr: 0,
-      cpc: 0,
-      cpm: 0,
-      frequency: 0,
-      results: 0,
-    };
-    await supabaseAdmin.from("campaigns").update(zeroMetrics).eq("ad_account_id", account.id);
-    await supabaseAdmin.from("ad_sets").update(zeroMetrics).eq("ad_account_id", account.id);
-    await supabaseAdmin.from("ads").update(zeroMetrics).eq("ad_account_id", account.id);
 
     const metricsOf = (row: any) => ({
       spend: Number(row.spend) || 0,
@@ -280,78 +245,61 @@ export async function syncAdAccount(adAccountId: string) {
       frequency: Number(row.frequency) || 0,
     });
 
-    // Batched into a single upsert per level (1 request instead of N) to stay
-    // under the Worker per-invocation subrequest limit.
     if (campInsights.length > 0) {
       const rows = (campInsights as any[])
-        .map((row) => {
-          const known = knownCampaignById.get(row.campaign_id);
-          if (!known) return null;
-          return {
-            fb_campaign_id: row.campaign_id,
-            ad_account_id: account.id,
-            name: known.name,
-            ...metricsOf(row),
-            results: extractPrimaryResults(row.actions, row.optimization_goal),
-          };
-        })
-        .filter((r): r is NonNullable<typeof r> => r !== null);
+        .filter((row) => !!row.campaign_id)
+        .map((row) => ({
+          fb_campaign_id: String(row.campaign_id),
+          ...metricsOf(row),
+          results: extractPrimaryResults(row.actions, row.optimization_goal),
+        }));
       if (rows.length > 0) {
-        const { error: eCampIns } = await supabaseAdmin
-          .from("campaigns")
-          .upsert(rows, { onConflict: "fb_campaign_id" });
-        if (eCampIns) throw new Error(`campaign insights upsert: ${eCampIns.message}`);
+        const { error: eCampIns } = await (supabaseAdmin as any).rpc("apply_campaign_metrics", {
+          _ad_account_id: account.id,
+          _rows: rows,
+        });
+        if (eCampIns) throw new Error(`campaign insights update: ${eCampIns.message}`);
       }
     }
     if (asInsights.length > 0) {
       const rows = (asInsights as any[])
-        .map((row) => {
-          const known = knownAdSetById.get(row.adset_id);
-          if (!known) return null;
-          return {
-            fb_adset_id: row.adset_id,
-            ad_account_id: account.id,
-            campaign_id: known.campaign_id,
-            name: known.name,
-            ...metricsOf(row),
-            results: extractPrimaryResults(
-              row.actions,
-              row.optimization_goal ?? adSetGoalByFbId.get(row.adset_id),
-            ),
-          };
-        })
-        .filter((r): r is NonNullable<typeof r> => r !== null);
+        .filter((row) => !!row.adset_id)
+        .map((row) => ({
+          fb_adset_id: String(row.adset_id),
+          ...metricsOf(row),
+          results: extractPrimaryResults(
+            row.actions,
+            row.optimization_goal ?? adSetGoalByFbId.get(row.adset_id),
+          ),
+        }));
       if (rows.length > 0) {
-        const { error: eAsIns } = await supabaseAdmin
-          .from("ad_sets")
-          .upsert(rows, { onConflict: "fb_adset_id" });
-        if (eAsIns) throw new Error(`ad set insights upsert: ${eAsIns.message}`);
+        const { error: eAsIns } = await (supabaseAdmin as any).rpc("apply_ad_set_metrics", {
+          _ad_account_id: account.id,
+          _rows: rows,
+        });
+        if (eAsIns) throw new Error(`ad set insights update: ${eAsIns.message}`);
       }
     }
     if (adInsights.length > 0) {
       const rows = (adInsights as any[])
-        .map((row) => {
-          const known = knownAdById.get(row.ad_id);
-          if (!known) return null;
-          const goal = row.optimization_goal ?? adSetGoalByFbId.get(row.adset_id);
-          return {
-            fb_ad_id: row.ad_id,
-            ad_account_id: account.id,
-            ad_set_id: known.ad_set_id,
-            campaign_id: known.campaign_id,
-            name: known.name,
-            ...metricsOf(row),
-            results: extractPrimaryResults(row.actions, goal),
-          };
-        })
-        .filter((r): r is NonNullable<typeof r> => r !== null);
+        .filter((row) => !!row.ad_id)
+        .map((row) => ({
+          fb_ad_id: String(row.ad_id),
+          ...metricsOf(row),
+          results: extractPrimaryResults(
+            row.actions,
+            row.optimization_goal ?? adSetGoalByFbId.get(row.adset_id),
+          ),
+        }));
       if (rows.length > 0) {
-        const { error: eAdIns } = await supabaseAdmin
-          .from("ads")
-          .upsert(rows, { onConflict: "fb_ad_id" });
-        if (eAdIns) throw new Error(`ad insights upsert: ${eAdIns.message}`);
+        const { error: eAdIns } = await (supabaseAdmin as any).rpc("apply_ad_metrics", {
+          _ad_account_id: account.id,
+          _rows: rows,
+        });
+        if (eAdIns) throw new Error(`ad insights update: ${eAdIns.message}`);
       }
     }
+
 
     const snapshotSince = new Date();
     snapshotSince.setUTCDate(snapshotSince.getUTCDate() - 29);
@@ -519,7 +467,6 @@ export async function syncAdAccount(adAccountId: string) {
           const frequency = v.reach > 0 ? v.impressions / v.reach : 0;
           return {
             fb_adset_id: fbAdsetId,
-            ad_account_id: account.id,
             spend: v.spend,
             reach: v.reach,
             impressions: v.impressions,
@@ -532,11 +479,14 @@ export async function syncAdAccount(adAccountId: string) {
           };
         });
       if (fallbackRows.length > 0) {
-        const { error: eFallback } = await supabaseAdmin
-          .from("ad_sets")
-          .upsert(fallbackRows, { onConflict: "fb_adset_id" });
-        if (eFallback) throw new Error(`ad set fallback upsert: ${eFallback.message}`);
+        // UPDATE-only RPC (never INSERTs) — same not-null hardening as above.
+        const { error: eFallback } = await (supabaseAdmin as any).rpc("apply_ad_set_metrics", {
+          _ad_account_id: account.id,
+          _rows: fallbackRows,
+        });
+        if (eFallback) throw new Error(`ad set fallback update: ${eFallback.message}`);
       }
+
     }
 
     const activeCampaigns = campaigns.filter((c: any) => c.effective_status === "ACTIVE").length;
@@ -621,7 +571,30 @@ function isFbRateLimitError(message: string | null | undefined): boolean {
   return !!m && FB_RATE_LIMIT_CODES.includes(m[1]);
 }
 
-export async function syncAllAccounts() {
+// FIX: Cloudflare Worker error
+//   "Too many subrequests by single Worker invocation."
+// One account sync costs ~25-30 subrequests (Facebook Graph calls + database
+// calls). Syncing EVERY account inside a single invocation therefore blew the
+// per-invocation subrequest budget as soon as there were a few accounts, and
+// every account after the first one or two failed.
+//
+// FIX: syncAllAccounts() now processes at most MAX_ACCOUNTS_PER_RUN accounts
+// per invocation (least-recently-synced first, so every account gets its turn)
+// and reports how many are still pending. The UI drives the remaining accounts
+// one request per account, and the cron simply picks up where it left off.
+const DEFAULT_MAX_ACCOUNTS_PER_RUN = 1;
+
+function maxAccountsPerRun(requested?: number): number {
+  const envValue = Number(process.env["SYNC_MAX_ACCOUNTS_PER_RUN"]);
+  const fallback =
+    Number.isFinite(envValue) && envValue > 0 ? Math.floor(envValue) : DEFAULT_MAX_ACCOUNTS_PER_RUN;
+  const n = Number.isFinite(Number(requested)) && Number(requested)! > 0 ? Number(requested) : fallback;
+  // Hard ceiling: never try more than 3 accounts in one Worker invocation.
+  return Math.min(Math.floor(n), 3);
+}
+
+export async function syncAllAccounts(options?: { maxAccounts?: number }) {
+  const limit = maxAccountsPerRun(options?.maxAccounts);
   const health = await checkTokenHealth();
   const legacyToken = await getLegacyToken();
 
@@ -633,7 +606,7 @@ export async function syncAllAccounts() {
       .eq("is_active", true);
     if ((connCount ?? 0) === 0) {
       // কোনো multi-BM connection নেই — skip করো
-      return { count: 0, results: [], skipped: true, tokenHealth: health };
+      return { count: 0, results: [], skipped: true, tokenHealth: health, remaining: 0 };
     }
     // Multi-BM connections আছে — sync চালিয়ে যাও
   }
@@ -647,17 +620,28 @@ export async function syncAllAccounts() {
       ? await importVisibleAccountsForSync(legacyToken)
       : { imported: 0 };
 
+  // Least-recently-synced first (never-synced accounts win) so a capped run
+  // still rotates through every account across consecutive runs.
   const { data: accounts } = await supabaseAdmin
     .from("ad_accounts")
     .select("id,client_id,account_name,fb_account_id,last_sync_at,last_sync_status,last_sync_error")
-    .eq("is_active", true);
+    .eq("is_active", true)
+    .order("last_sync_at", { ascending: true, nullsFirst: true });
+
+  const all = (accounts ?? []) as any[];
   const results: Array<{
     id: string;
     ok: boolean;
     error?: string | null;
     account_name?: string | null;
   }> = [];
-  for (const a of (accounts ?? []) as any[]) {
+
+  let processed = 0;
+  let index = 0;
+  for (; index < all.length; index++) {
+    const a = all[index];
+    if (processed >= limit) break;
+
     if (
       a.last_sync_status === "failed" &&
       isFbRateLimitError(a.last_sync_error) &&
@@ -672,8 +656,9 @@ export async function syncAllAccounts() {
         ).toISOString()})`,
         account_name: a.account_name,
       });
-      continue;
+      continue; // cooldown skips cost no subrequests
     }
+
     try {
       const r = await syncAdAccount(a.id);
       results.push({ id: a.id, ok: r.ok, error: r.error, account_name: a.account_name });
@@ -682,16 +667,36 @@ export async function syncAllAccounts() {
       console.error(`[syncAllAccounts] threw for account ${a.account_name ?? a.fb_account_id}:`, e);
       results.push({ id: a.id, ok: false, error: msg, account_name: a.account_name });
     }
+    processed += 1;
   }
 
-  try {
-    await evaluateBudgetAlerts();
-  } catch (e) {
-    console.error("[syncAllAccounts] budget alerts failed", e);
+  const pending = all.slice(index).map((a) => ({
+    id: a.id as string,
+    account_name: (a.account_name ?? null) as string | null,
+  }));
+
+  // Budget alerts only when the whole rotation finished — they read aggregate
+  // spend, and running them mid-rotation both wastes subrequests and alerts on
+  // half-synced numbers.
+  if (pending.length === 0) {
+    try {
+      await evaluateBudgetAlerts();
+    } catch (e) {
+      console.error("[syncAllAccounts] budget alerts failed", e);
+    }
   }
 
-  return { count: results.length, results, tokenHealth: health, autoImport };
+  return {
+    count: results.length,
+    results,
+    tokenHealth: health,
+    autoImport,
+    remaining: pending.length,
+    pending,
+    limit,
+  };
 }
+
 
 async function evaluateBudgetAlerts() {
   const { data: clients } = await supabaseAdmin

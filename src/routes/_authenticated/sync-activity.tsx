@@ -11,6 +11,7 @@ import {
   retestAndReimport,
 } from "@/lib/fb/admin.functions";
 import { toast } from "sonner";
+import { runFullSync, summarizeSync } from "@/lib/sync-runner";
 import {
   Activity,
   RefreshCw,
@@ -41,6 +42,7 @@ function SyncActivityPage() {
   const [refreshing, setRefreshing] = useState(false);
   const [retesting, setRetesting] = useState(false);
   const [syncingId, setSyncingId] = useState<string | null>(null);
+  const [syncProgress, setSyncProgress] = useState<{ done: number; total: number } | null>(null);
   const [report, setReport] = useState<any | null>(null);
 
   const { data: accounts } = useQuery({
@@ -94,16 +96,21 @@ function SyncActivityPage() {
   const onSync = async () => {
     setSyncing(true);
     try {
-      const r: any = await syncFn({ data: undefined as any });
+      // FIX: one server request per account — a single invocation cannot
+      // afford the Facebook + database subrequests of every account
+      // ("Too many subrequests by single Worker invocation").
+      const r = await runFullSync({
+        syncAllFn: syncFn as any,
+        syncOneFn: syncOneFn as any,
+        onProgress: (done, total) => setSyncProgress({ done, total }),
+      });
 
       if (r?.skipped) {
         toast.error(r.tokenHealth?.error ?? "Token check failed.", { duration: 10000 });
         return;
       }
 
-      const results: Array<{ id: string; ok: boolean; error?: string | null }> = r?.results ?? [];
-      const failed = results.filter((x) => !x.ok);
-      const okCount = results.filter((x) => x.ok).length;
+      const { failed, okCount } = summarizeSync(r.results);
 
       if (failed.length === 0) {
         toast.success(`Synced ${okCount} account(s) successfully ✓`);
@@ -121,6 +128,7 @@ function SyncActivityPage() {
       toast.error(e?.message ?? "Sync failed", { duration: 10000 });
     } finally {
       setSyncing(false);
+      setSyncProgress(null);
     }
   };
 
@@ -212,7 +220,7 @@ function SyncActivityPage() {
             ) : (
               <RefreshCw className="size-4" />
             )}{" "}
-            Sync Now
+            {syncProgress ? `Syncing ${syncProgress.done}/${syncProgress.total}` : "Sync Now"}
           </button>
           <button
             onClick={onRetest}
