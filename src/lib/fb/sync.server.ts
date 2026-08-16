@@ -202,28 +202,56 @@ export async function syncAdAccount(adAccountId: string) {
     const adInsights = await fb.getInsights(actId, token, "maximum", "ad");
 
     // FIX: Facebook's insights endpoint can return rows for campaigns/ad sets/
-    // ads that no longer exist in our `campaigns`/`ad_sets`/`ads` tables — e.g.
-    // a campaign was DELETED on Facebook (so listCampaigns' visible-status
-    // filter excludes it) but it still has spend inside the "maximum" lookback
-    // window, so /insights still returns a row for it. Upserting that row
-    // would try to INSERT a brand new campaign with only fb_campaign_id +
-    // metrics, missing required NOT NULL columns like "name" — the exact
-    // "null value in column \"name\"" error. We only ever want to UPDATE
-    // known entities here, never insert, so filter to known ids first (the
-    // old row is silently left alone if it isn't in our table — same as the
-    // original per-row `.update()` behavior, which no-ops on zero matches).
-    const [{ data: knownCampaigns }, { data: knownAdSets }, { data: knownAds }] =
-      await Promise.all([
-        supabaseAdmin
-          .from("campaigns")
-          .select("fb_campaign_id")
-          .eq("ad_account_id", account.id),
-        supabaseAdmin.from("ad_sets").select("fb_adset_id").eq("ad_account_id", account.id),
-        supabaseAdmin.from("ads").select("fb_ad_id").eq("ad_account_id", account.id),
-      ]);
-    const knownCampaignIds = new Set((knownCampaigns ?? []).map((r) => r.fb_campaign_id));
-    const knownAdSetIds = new Set((knownAdSets ?? []).map((r) => r.fb_adset_id));
-    const knownAdIds = new Set((knownAds ?? []).map((r) => r.fb_ad_id));
+    // ads that no longer exist in our `campaigns`/`ad_sets`/`ads` tables (e.g.
+    // deleted on Facebook but still inside the "maximum" lookback window).
+    // Upserting such a row INSERTs a brand-new record with only fb id +
+    // metrics, which violates the NOT NULL columns (name, campaign_id, ...) —
+    // the "null value in column \"name\" of relation \"campaigns\"" error.
+    //
+    // Two hardenings vs. before:
+    //  1) the "known ids" reads are PAGINATED — PostgREST caps a select at
+    //     1000 rows, so accounts with >1000 entities used to treat everything
+    //     past row 1000 as unknown-but-then-still-upsert, causing the INSERT.
+    //  2) the upsert payload now carries the existing NOT NULL columns, so
+    //     even if a row slips through, the INSERT can never be null-violating.
+    const PAGE = 1000;
+    async function selectAllRows<T>(
+      table: "campaigns" | "ad_sets" | "ads",
+      columns: string,
+    ): Promise<T[]> {
+      const out: T[] = [];
+      for (let from = 0; ; from += PAGE) {
+        const { data, error } = await supabaseAdmin
+          .from(table)
+          .select(columns)
+          .eq("ad_account_id", account.id)
+          .range(from, from + PAGE - 1);
+        if (error) throw new Error(`${table} known-ids read: ${error.message}`);
+        const page = (data ?? []) as unknown as T[];
+        out.push(...page);
+        if (page.length < PAGE) break;
+      }
+      return out;
+    }
+
+    const [knownCampaignRows, knownAdSetRows, knownAdRows] = await Promise.all([
+      selectAllRows<{ fb_campaign_id: string; name: string }>(
+        "campaigns",
+        "fb_campaign_id,name",
+      ),
+      selectAllRows<{ fb_adset_id: string; name: string; campaign_id: string }>(
+        "ad_sets",
+        "fb_adset_id,name,campaign_id",
+      ),
+      selectAllRows<{ fb_ad_id: string; name: string; ad_set_id: string; campaign_id: string }>(
+        "ads",
+        "fb_ad_id,name,ad_set_id,campaign_id",
+      ),
+    ]);
+
+    const knownCampaignById = new Map(knownCampaignRows.map((r) => [r.fb_campaign_id, r]));
+    const knownAdSetById = new Map(knownAdSetRows.map((r) => [r.fb_adset_id, r]));
+    const knownAdById = new Map(knownAdRows.map((r) => [r.fb_ad_id, r]));
 
     // Reset metrics first so entities that fell out of range don't keep stale numbers.
     const zeroMetrics = {
@@ -241,27 +269,33 @@ export async function syncAdAccount(adAccountId: string) {
     await supabaseAdmin.from("ad_sets").update(zeroMetrics).eq("ad_account_id", account.id);
     await supabaseAdmin.from("ads").update(zeroMetrics).eq("ad_account_id", account.id);
 
-    // FIX: these used to be N individual `.update()` calls in a loop — each one
-    // is a separate Supabase (Cloudflare Worker) subrequest. With 50+ campaigns/
-    // adsets/ads that alone could blow through the Worker's per-invocation
-    // subrequest limit ("Too many subrequests by single Worker invocation").
-    // Batched into a single upsert per level instead (1 request instead of N).
+    const metricsOf = (row: any) => ({
+      spend: Number(row.spend) || 0,
+      reach: Number(row.reach) || 0,
+      impressions: Number(row.impressions) || 0,
+      clicks: Number(row.clicks) || 0,
+      ctr: Number(row.ctr) || 0,
+      cpc: Number(row.cpc) || 0,
+      cpm: Number(row.cpm) || 0,
+      frequency: Number(row.frequency) || 0,
+    });
+
+    // Batched into a single upsert per level (1 request instead of N) to stay
+    // under the Worker per-invocation subrequest limit.
     if (campInsights.length > 0) {
       const rows = (campInsights as any[])
-        .filter((row) => knownCampaignIds.has(row.campaign_id))
-        .map((row) => ({
-          fb_campaign_id: row.campaign_id,
-          ad_account_id: account.id,
-          spend: Number(row.spend) || 0,
-          reach: Number(row.reach) || 0,
-          impressions: Number(row.impressions) || 0,
-          clicks: Number(row.clicks) || 0,
-          ctr: Number(row.ctr) || 0,
-          cpc: Number(row.cpc) || 0,
-          cpm: Number(row.cpm) || 0,
-          frequency: Number(row.frequency) || 0,
-          results: extractPrimaryResults(row.actions, row.optimization_goal),
-        }));
+        .map((row) => {
+          const known = knownCampaignById.get(row.campaign_id);
+          if (!known) return null;
+          return {
+            fb_campaign_id: row.campaign_id,
+            ad_account_id: account.id,
+            name: known.name,
+            ...metricsOf(row),
+            results: extractPrimaryResults(row.actions, row.optimization_goal),
+          };
+        })
+        .filter((r): r is NonNullable<typeof r> => r !== null);
       if (rows.length > 0) {
         const { error: eCampIns } = await supabaseAdmin
           .from("campaigns")
@@ -271,23 +305,22 @@ export async function syncAdAccount(adAccountId: string) {
     }
     if (asInsights.length > 0) {
       const rows = (asInsights as any[])
-        .filter((row) => knownAdSetIds.has(row.adset_id))
-        .map((row) => ({
-          fb_adset_id: row.adset_id,
-          ad_account_id: account.id,
-          spend: Number(row.spend) || 0,
-          reach: Number(row.reach) || 0,
-          impressions: Number(row.impressions) || 0,
-          clicks: Number(row.clicks) || 0,
-          ctr: Number(row.ctr) || 0,
-          cpc: Number(row.cpc) || 0,
-          cpm: Number(row.cpm) || 0,
-          frequency: Number(row.frequency) || 0,
-          results: extractPrimaryResults(
-            row.actions,
-            row.optimization_goal ?? adSetGoalByFbId.get(row.adset_id),
-          ),
-        }));
+        .map((row) => {
+          const known = knownAdSetById.get(row.adset_id);
+          if (!known) return null;
+          return {
+            fb_adset_id: row.adset_id,
+            ad_account_id: account.id,
+            campaign_id: known.campaign_id,
+            name: known.name,
+            ...metricsOf(row),
+            results: extractPrimaryResults(
+              row.actions,
+              row.optimization_goal ?? adSetGoalByFbId.get(row.adset_id),
+            ),
+          };
+        })
+        .filter((r): r is NonNullable<typeof r> => r !== null);
       if (rows.length > 0) {
         const { error: eAsIns } = await supabaseAdmin
           .from("ad_sets")
@@ -297,23 +330,21 @@ export async function syncAdAccount(adAccountId: string) {
     }
     if (adInsights.length > 0) {
       const rows = (adInsights as any[])
-        .filter((row) => knownAdIds.has(row.ad_id))
         .map((row) => {
+          const known = knownAdById.get(row.ad_id);
+          if (!known) return null;
           const goal = row.optimization_goal ?? adSetGoalByFbId.get(row.adset_id);
           return {
             fb_ad_id: row.ad_id,
             ad_account_id: account.id,
-            spend: Number(row.spend) || 0,
-            reach: Number(row.reach) || 0,
-            impressions: Number(row.impressions) || 0,
-            clicks: Number(row.clicks) || 0,
-            ctr: Number(row.ctr) || 0,
-            cpc: Number(row.cpc) || 0,
-            cpm: Number(row.cpm) || 0,
-            frequency: Number(row.frequency) || 0,
+            ad_set_id: known.ad_set_id,
+            campaign_id: known.campaign_id,
+            name: known.name,
+            ...metricsOf(row),
             results: extractPrimaryResults(row.actions, goal),
           };
-        });
+        })
+        .filter((r): r is NonNullable<typeof r> => r !== null);
       if (rows.length > 0) {
         const { error: eAdIns } = await supabaseAdmin
           .from("ads")
